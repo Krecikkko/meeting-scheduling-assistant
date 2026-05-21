@@ -1,0 +1,131 @@
+version: "3.1"
+
+nlu:
+  - intent: greet
+    examples: |
+      - hi
+      - hello
+      - hey
+      - good morning
+      - good afternoon
+      - hello bot
+      - hi there
+
+  - intent: goodbye
+    examples: |
+      - bye
+      - goodbye
+      - see you
+      - thanks bye
+      - talk to you later
+      - have a nice day
+
+  - intent: schedule_meeting
+    examples: |
+      - I want to schedule a meeting
+      - help me schedule a meeting
+      - I need to arrange a meeting
+      - create a meeting
+      - schedule a project meeting
+      - arrange a call
+      - I want to organize a meeting
+      - can you help me plan a meeting
+      - I need to find a time for a meeting
+      - let's schedule a team meeting
+      - I want to create a doodle poll
+      - help me find a meeting time
+      - schedule a meeting tomorrow at 3 pm
+      - arrange a one hour meeting next Monday
+      - set up a call with anna@example.com
+
+  - intent: inform
+    examples: |
+      - project planning
+      - exam preparation
+      - budget review
+      - Anna and Tom
+      - Anna, Tom and Maria
+      - anna@example.com and tom@example.com
+      - invite anna@example.com
+      - 30 minutes
+      - 45 minutes
+      - one hour
+      - two hours
+      - Monday at 3 pm
+      - next Tuesday morning
+      - tomorrow afternoon
+      - Friday at 10
+      - next week
+      - on Wednesday at 11
+      - after lunch tomorrow
+      - in the morning
+
+  - intent: provide_availability
+    examples: |
+      - I am free on Monday after 2 pm
+      - Tuesday morning works
+      - I can do Wednesday at 10
+      - Friday afternoon is fine
+      - I am available tomorrow between 9 and 12
+      - next Monday at 3 pm works for me
+      - I am free for one hour on Tuesday
+
+  - intent: confirm
+    examples: |
+      - yes
+      - correct
+      - confirm
+      - that works
+      - sounds good
+      - yes please
+      - okay
+      - ok
+      - sure
+      - perfect
+      - that is fine
+
+  - intent: deny
+    examples: |
+      - no
+      - not really
+      - no thanks
+      - that does not work
+      - I do not want that
+      - not this time
+      - choose another option
+
+  - intent: cancel
+    examples: |
+      - cancel
+      - stop
+      - never mind
+      - forget it
+      - cancel scheduling
+      - stop the process
+      - I want to cancel
+
+  - intent: ask_help
+    examples: |
+      - help
+      - what can you do
+      - how does this work
+      - what information do you need
+      - explain how you work
+      - can you help me
+
+  - intent: change_time
+    examples: |
+      - change the time
+      - choose another time
+      - reschedule it
+      - can we move it
+      - I need a different time
+      - that time is not good
+
+  - intent: bot_challenge
+    examples: |
+      - are you a bot
+      - are you human
+      - what are you
+      - who are you
+      - are you an assistant

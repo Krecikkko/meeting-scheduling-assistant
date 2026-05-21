@@ -1,0 +1,31 @@
+# Rasa files
+.rasa/
+models/
+
+# Python virtual environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Log files
+*.log
+action_server.log
+rasa_server.log
+
+# Backup files
+*.bak
+domain.yml.bak
+data/nlu.yml.bak
+data/rules.yml.bak
+data/stories.yml.bak
+
+# OS files
+.DS_Store
+Thumbs.db

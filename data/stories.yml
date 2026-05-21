@@ -1,0 +1,36 @@
+version: "3.1"
+
+stories:
+  - story: schedule a meeting happy path
+    steps:
+      - intent: greet
+      - action: utter_greet
+      - intent: schedule_meeting
+      - action: meeting_form
+      - active_loop: meeting_form
+      - active_loop: null
+      - action: action_suggest_meeting_slots
+      - action: utter_confirm_meeting
+      - intent: confirm
+      - action: action_create_meeting_summary
+
+  - story: schedule a meeting directly
+    steps:
+      - intent: schedule_meeting
+      - action: meeting_form
+      - active_loop: meeting_form
+      - active_loop: null
+      - action: action_suggest_meeting_slots
+      - action: utter_confirm_meeting
+      - intent: confirm
+      - action: action_create_meeting_summary
+
+  - story: ask for help
+    steps:
+      - intent: ask_help
+      - action: utter_help
+
+  - story: bot challenge
+    steps:
+      - intent: bot_challenge
+      - action: utter_iamabot

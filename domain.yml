@@ -1,0 +1,123 @@
+version: "3.1"
+
+intents:
+  - greet
+  - goodbye
+  - schedule_meeting
+  - inform
+  - provide_availability
+  - confirm
+  - deny
+  - cancel
+  - ask_help
+  - change_time
+  - bot_challenge
+  - nlu_fallback
+
+entities:
+  - meeting_title
+  - participant
+  - email
+  - time
+  - duration
+  - number
+
+slots:
+  meeting_title:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_text
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: meeting_title
+
+  participants:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_text
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: participants
+
+  duration:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: duration
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: duration
+      - type: from_text
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: duration
+
+  preferred_time:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: time
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: preferred_time
+      - type: from_text
+        conditions:
+          - active_loop: meeting_form
+            requested_slot: preferred_time
+
+forms:
+  meeting_form:
+    required_slots:
+      - meeting_title
+      - participants
+      - duration
+      - preferred_time
+
+responses:
+  utter_greet:
+    - text: "Hi! I can help you schedule a meeting."
+
+  utter_goodbye:
+    - text: "Goodbye!"
+
+  utter_ask_meeting_title:
+    - text: "What is the meeting about?"
+
+  utter_ask_participants:
+    - text: "Who should participate? You can give names or emails."
+
+  utter_ask_duration:
+    - text: "How long should the meeting be?"
+
+  utter_ask_preferred_time:
+    - text: "When would you like to schedule it?"
+
+  utter_confirm_meeting:
+    - text: "Please confirm: meeting '{meeting_title}', duration {duration}, preferred time {preferred_time}, participants: {participants}."
+
+  utter_meeting_scheduled:
+    - text: "Meeting scheduled! Title: {meeting_title}. Time: {preferred_time}. Duration: {duration}. Participants: {participants}."
+
+  utter_cancelled:
+    - text: "Okay, I cancelled the scheduling process."
+
+  utter_help:
+    - text: "I can help you schedule a meeting. I will ask for the meeting topic, participants, duration, and preferred time. I can also recognize dates, times, durations and emails using Duckling."
+
+  utter_iamabot:
+    - text: "I am a meeting scheduling assistant built with Rasa."
+
+  utter_default:
+    - text: "Sorry, I did not understand. Could you rephrase?"
+
+actions:
+  - action_suggest_meeting_slots
+  - action_create_meeting_summary
+
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: true

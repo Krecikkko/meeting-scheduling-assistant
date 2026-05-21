@@ -1,0 +1,37 @@
+version: "3.1"
+
+language: en
+
+pipeline:
+- name: WhitespaceTokenizer
+- name: RegexFeaturizer
+- name: LexicalSyntacticFeaturizer
+- name: CountVectorsFeaturizer
+- name: CountVectorsFeaturizer
+  analyzer: char_wb
+  min_ngram: 1
+  max_ngram: 4
+- name: DIETClassifier
+  epochs: 100
+  constrain_similarities: true
+- name: DucklingEntityExtractor
+  url: "http://localhost:8000"
+  dimensions:
+  - time
+  - duration
+  - email
+  - number
+  locale: "en_GB"
+  timezone: "Europe/Lisbon"
+- name: EntitySynonymMapper
+- name: FallbackClassifier
+  threshold: 0.4
+
+policies:
+- name: MemoizationPolicy
+- name: RulePolicy
+- name: TEDPolicy
+  max_history: 5
+  epochs: 50
+  constrain_similarities: true
+assistant_id: 20260521-160904-convoluted-quail
