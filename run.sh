@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+#
+# Usage: ./run.sh [options]
+#
+# This script starts the Duckling entity extractor container, validates
+# Rasa training data, trains the model (optional), launches the custom
+# action server in the background, and starts the interactive Rasa shell.
+#
+# Available Options:
+#   --stop-duckling    Stop the Duckling container when exiting the script.
+#                      By default, Duckling is left running.
+#   --skip-train       Skip model training (rasa train) and start the Rasa
+#                      shell directly using the last trained model.
+#
 set -Eeuo pipefail
 
 STOP_DUCKLING=false
