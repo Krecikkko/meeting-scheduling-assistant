@@ -46,6 +46,12 @@ else
   exit 1
 fi
 
+if [ ! -f ".env" ]; then
+  echo "WARNING: .env file not found! Please copy .env.example to .env and fill in your Home Assistant configuration."
+  echo "Continuing without Home Assistant calendar sync..."
+  echo ""
+fi
+
 ACTION_PID=""
 
 cleanup() {

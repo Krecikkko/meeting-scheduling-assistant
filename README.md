@@ -105,6 +105,40 @@ Bot: Meeting scheduled! Title: Project planning. Time: next Monday at 3 pm. Dura
 
 ---
 
+## Home Assistant Calendar Integration
+
+This assistant integrates with a Home Assistant calendar using its REST API to automatically create calendar events once a meeting is confirmed.
+
+### Configuration
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Configure the following variables inside `.env`:
+   * `HA_URL`: The base URL of your Home Assistant instance (e.g., `http://homeassistant.local:8123`).
+   * `HA_TOKEN`: A Long-Lived Access Token. You can generate one in Home Assistant by navigating to your user profile page, scrolling to the bottom, and clicking **Create Token** under *Long-Lived Access Tokens*.
+   * `HA_CALENDAR_ENTITY`: The entity ID of the target calendar (e.g., `calendar.personal`).
+   * `DEFAULT_MEETING_DURATION_MINUTES`: Default duration in minutes (e.g., `30`) if not provided or parsed.
+   * `TIMEZONE`: The local timezone used for localizing naive times parsed from the conversation (e.g., `Europe/Lisbon`).
+
+### API Implementation Details
+
+* **Service Endpoint**: `POST /api/services/calendar/create_event`
+* **JSON Payload**:
+  * `entity_id`: Map from environment variable `HA_CALENDAR_ENTITY`
+  * `summary`: Map from Rasa slot `meeting_title`
+  * `description`: Map from Rasa slot `participants` (formatted as `Participants: {participants}`)
+  * `start_date_time`: Start time (ISO string format) parsed from the `preferred_time` slot
+  * `end_date_time`: Calculated as `start_time + duration` (ISO string format)
+* **Error handling & security**:
+  * The access token is protected and never leaked in console logs, file logs, or user messages.
+  * If the Home Assistant API call fails (due to a connection issue, incorrect token, or missing entity), the custom action catches the error and replies with a fallback warning to the user:
+    `I scheduled the meeting in the assistant, but I could not add it to Home Assistant calendar. Reason: {reason}`
+    This ensures the dialogue flow completes successfully even when the calendar is unreachable.
+
+---
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

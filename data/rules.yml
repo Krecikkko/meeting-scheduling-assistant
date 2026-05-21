@@ -26,10 +26,18 @@ rules:
       - action: action_suggest_meeting_slots
       - action: utter_confirm_meeting
 
-  - rule: Confirm meeting
+  - rule: Confirm proposed meeting
     steps:
+      - action: utter_confirm_meeting
       - intent: confirm
       - action: action_create_meeting_summary
+
+  - rule: Reject proposed meeting
+    steps:
+      - action: utter_confirm_meeting
+      - intent: deny
+      - action: action_clear_meeting_slots
+      - action: utter_cancelled
 
   - rule: Cancel scheduling
     steps:

@@ -73,8 +73,11 @@ nlu:
   - intent: confirm
     examples: |
       - yes
+      - Yes
       - correct
       - confirm
+      - I confirm
+      - yes, I confirm
       - that works
       - sounds good
       - yes please
@@ -83,16 +86,29 @@ nlu:
       - sure
       - perfect
       - that is fine
+      - schedule it
+      - create the meeting
 
   - intent: deny
     examples: |
       - no
-      - not really
+      - No
+      - nope
       - no thanks
+      - not really
       - that does not work
       - I do not want that
       - not this time
       - choose another option
+      - I don't confirm
+      - I do not confirm
+      - no, I don't confirm
+      - no, I do not confirm
+      - I don't want to confirm
+      - do not confirm
+      - cancel this meeting
+      - don't schedule it
+      - I changed my mind
 
   - intent: cancel
     examples: |

@@ -117,6 +117,7 @@ responses:
 actions:
   - action_suggest_meeting_slots
   - action_create_meeting_summary
+  - action_clear_meeting_slots
 
 session_config:
   session_expiration_time: 60
