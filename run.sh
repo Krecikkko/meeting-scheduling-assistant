@@ -97,6 +97,11 @@ else
 fi
 
 echo "Starting action server..."
+if lsof -i :5055 >/dev/null 2>&1; then
+  echo "Port 5055 is in use. Killing the existing process..."
+  kill -9 $(lsof -t -i:5055) 2>/dev/null || true
+  sleep 1
+fi
 rasa run actions &
 ACTION_PID=$!
 sleep 3
