@@ -4,18 +4,21 @@
 #
 # This script starts the Duckling entity extractor container, validates
 # Rasa training data, trains the model (optional), launches the custom
-# action server in the background, and starts the interactive Rasa shell.
+# action server, Rasa REST server, and python static server in the background,
+# and opens the browser to point to the chat client.
 #
 # Available Options:
 #   --stop-duckling    Stop the Duckling container when exiting the script.
 #                      By default, Duckling is left running.
 #   --skip-train       Skip model training (rasa train) and start the Rasa
-#                      shell directly using the last trained model.
+#                      server directly using the last trained model.
+#   --no-browser       Do not automatically open the browser page.
 #
 set -Eeuo pipefail
 
 STOP_DUCKLING=false
 SKIP_TRAIN=false
+NO_BROWSER=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -25,9 +28,12 @@ for arg in "$@"; do
     --skip-train)
       SKIP_TRAIN=true
       ;;
+    --no-browser)
+      NO_BROWSER=true
+      ;;
     *)
       echo "Unknown option: $arg"
-      echo "Available options: --stop-duckling --skip-train"
+      echo "Available options: --stop-duckling --skip-train --no-browser"
       exit 1
       ;;
   esac
@@ -52,26 +58,63 @@ if [ ! -f ".env" ]; then
   echo ""
 fi
 
-ACTION_PID=""
+# Ensure runtime directory exists
+mkdir -p .runtime
 
 cleanup() {
   echo ""
-  echo "Cleaning up..."
+  echo "Cleaning up background processes..."
 
-  if [ -n "${ACTION_PID}" ] && kill -0 "$ACTION_PID" 2>/dev/null; then
-    echo "Stopping Rasa action server..."
-    kill "$ACTION_PID" 2>/dev/null || true
+  # Stop action server
+  if [ -f ".runtime/action.pid" ]; then
+    PID=$(cat .runtime/action.pid 2>/dev/null || true)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+      echo "Stopping Rasa action server (PID $PID)..."
+      kill "$PID" 2>/dev/null || true
+    fi
+    rm -f .runtime/action.pid
   fi
 
+  # Stop Rasa server
+  if [ -f ".runtime/rasa.pid" ]; then
+    PID=$(cat .runtime/rasa.pid 2>/dev/null || true)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+      echo "Stopping Rasa REST server (PID $PID)..."
+      kill "$PID" 2>/dev/null || true
+    fi
+    rm -f .runtime/rasa.pid
+  fi
+
+  # Stop static web server
+  if [ -f ".runtime/web.pid" ]; then
+    PID=$(cat .runtime/web.pid 2>/dev/null || true)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+      echo "Stopping web server (PID $PID)..."
+      kill "$PID" 2>/dev/null || true
+    fi
+    rm -f .runtime/web.pid
+  fi
+
+  # Stop Duckling
   if [ "$STOP_DUCKLING" = true ]; then
     echo "Stopping Duckling..."
     docker compose stop duckling || true
   fi
 
+  rmdir .runtime 2>/dev/null || true
   echo "Done."
 }
 
 trap cleanup EXIT INT TERM
+
+# Free ports if they are already in use to prevent start conflicts
+for port in 5005 5055 8080; do
+  if lsof -i :$port >/dev/null 2>&1; then
+    echo "Port $port is in use. Killing the existing process..."
+    kill -9 $(lsof -t -i:$port) 2>/dev/null || true
+    sleep 1
+  fi
+done
 
 echo "Starting Duckling with Docker Compose..."
 docker compose up -d duckling
@@ -96,15 +139,45 @@ else
   echo "Skipping training."
 fi
 
-echo "Starting action server..."
-if lsof -i :5055 >/dev/null 2>&1; then
-  echo "Port 5055 is in use. Killing the existing process..."
-  kill -9 $(lsof -t -i:5055) 2>/dev/null || true
-  sleep 1
-fi
-rasa run actions &
-ACTION_PID=$!
+echo "Starting Rasa action server..."
+rasa run actions --port 5055 > action_server.log 2>&1 &
+echo $! > .runtime/action.pid
 sleep 3
 
-echo "Starting Rasa shell..."
-rasa shell
+echo "Starting Rasa REST server..."
+rasa run --enable-api --cors "*" --port 5005 > rasa_server.log 2>&1 &
+echo $! > .runtime/rasa.pid
+sleep 5
+
+echo "Starting static web server..."
+python3 -m http.server 8080 --directory web > web_server.log 2>&1 &
+echo $! > .runtime/web.pid
+sleep 2
+
+echo ""
+echo "=========================================================="
+echo "Assistant is up and running!"
+echo "--------------------------------------------------------=="
+echo "  - Chat UI:        http://localhost:8080"
+echo "  - Rasa REST API:  http://localhost:5005"
+echo "  - Action server:  http://localhost:5055"
+echo "  - Duckling:       http://localhost:8000"
+echo "=========================================================="
+echo ""
+
+if [ "$NO_BROWSER" = false ]; then
+  if command -v xdg-open >/dev/null 2>&1; then
+    echo "Opening Chat UI in browser..."
+    xdg-open "http://localhost:8080" || true
+  elif command -v open >/dev/null 2>&1; then
+    echo "Opening Chat UI in browser..."
+    open "http://localhost:8080" || true
+  fi
+fi
+
+echo "Press Ctrl+C to stop all services."
+
+# Keep running
+while true; do
+  sleep 1
+done

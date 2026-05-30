@@ -32,3 +32,5 @@ Thumbs.db
 
 # Local environment secrets
 .env
+
+.runtime/

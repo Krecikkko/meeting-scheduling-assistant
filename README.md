@@ -1,36 +1,37 @@
 # Meeting Scheduling Assistant
 
-An intelligent dialogue assistant built on **Rasa Open Source** and integrated with **Home Assistant Calendar** and **Duckling**. This assistant lets users check their schedules, arrange meetings, and modify details on the fly.
+An intelligent dialogue assistant built on **Rasa Open Source** and integrated with a **Home Assistant Calendar** and **Duckling**. The project provides both a textual dialogue interface and a modern browser-based web chat interface.
 
 ---
 
 ## Features
 
-1. **Direct Meeting Scheduling**: Arrange meetings by topic, duration, time, and participants.
-2. **Calendar Interruption queries**: Ask "what do I have tomorrow?" while selecting a meeting time. The assistant lists availability without losing your form progress.
-3. **Flexible Amendments**: Change specific fields (e.g. title, participants, duration, time) at the confirmation stage before event creation.
-4. **Standalone Calendar Queries**: Ask directly about schedule availability (e.g., "what do I have on Friday?").
-5. **Secure Home Assistant Sync**: Updates your Home Assistant Calendar API automatically, securely masking API tokens in all logs and user messages.
+1. **Modern Browser UI**: An interactive chat room interface served at `http://localhost:8080` to communicate with the assistant.
+2. **Direct Meeting Scheduling**: Arrange meetings by topic, duration, time, and participants.
+3. **Calendar Interruption queries**: Ask "what do I have tomorrow?" while selecting a meeting time. The assistant lists availability without losing your form progress.
+4. **Flexible Amendments**: Change specific fields (e.g. title, participants, duration, time) at the confirmation stage before event creation.
+5. **Standalone Calendar Queries**: Ask directly about schedule availability (e.g., "what do I have on Friday?").
+6. **Secure Home Assistant Sync**: Updates your Home Assistant Calendar API automatically, securely masking API tokens in all logs and user messages.
 
 ---
 
 ## Architecture Overview
 
 ```text
-User
-  ↓
-Rasa NLU + Duckling
-  ↓
-Dialogue Management: forms, rules, stories
-  ↓
-Custom Actions
-  ↓
+User Browser
+    ↓ HTTP POST
+Static Chat UI (localhost:8080)
+    ↓
+Rasa REST Channel (localhost:5005)
+    ↓
+Rasa NLU + Dialogue Management
+    ↓
+Rasa Action Server (localhost:5055)
+    ↓
 Home Assistant Calendar API
-```
 
-* **Rasa Open Source**: Manages conversation loops, stories, and forms.
-* **Duckling**: Extracted via Docker for standard time/duration formats.
-* **Custom Action Server**: Calculates dates/times, fetches events, and pushes meetings to HA.
+Duckling provides time/date/duration extraction for Rasa. (localhost:8000)
+```
 
 ---
 
@@ -56,28 +57,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run Duckling (Docker)
+### 2. Start all services (Duckling, Actions, Rasa, and Web UI)
 ```bash
-docker compose up -d duckling
+./run.sh
 ```
+* **Options**:
+  * `--skip-train`: Skip retraining Rasa models if they are already up to date.
+  * `--stop-duckling`: Stop the Duckling container automatically upon exiting the script.
+  * `--no-browser`: Do not automatically attempt to open the default web browser.
 
-### 3. Run Custom Actions Server
+This script opens the browser to `http://localhost:8080` automatically.
+
+### 3. Stop all services
+To cleanly stop background servers (Rasa server, action server, HTTP server, and Duckling):
 ```bash
-source .venv/bin/activate
-rasa run actions
+./stop.sh
 ```
-
-### 4. Run Rasa Shell
-```bash
-source .venv/bin/activate
-rasa shell
-```
-
-Alternatively, use the convenience `./run.sh` or stop services with `./stop.sh`.
+* **Options**:
+  * `--keep-duckling`: Keep the Duckling Docker container running (stopped by default).
 
 ---
 
-## Demo Conversation (Ammendment Flow)
+## Demo Conversation (Amendment Flow)
 
 ```text
 User: schedule a meeting
@@ -109,14 +110,41 @@ Bot: Meeting scheduled and added to Home Assistant calendar.
 
 ---
 
+## Troubleshooting Guide
+
+### 1. Duckling not running
+* **Symptom**: `run.sh` reports `Duckling is not responding on http://localhost:8000`.
+* **Fix**: Ensure Docker daemon is running. Try executing `docker compose up -d duckling` manually and testing with:
+  `curl -XPOST http://localhost:8000/parse --data 'locale=en_GB&text=tomorrow at 8'`
+
+### 2. Rasa unavailable
+* **Symptom**: Red warning banner appears at the top of the browser chat page stating: `Could not connect to the assistant. Please check that Rasa is running.`
+* **Fix**: Check `rasa_server.log` for compilation or startup errors. Ensure Rasa is running on port `5005` by executing: `curl http://localhost:5005`
+
+### 3. Action server unavailable
+* **Symptom**: Rasa replies with warnings that it cannot run custom actions, or log output shows connection errors to port `5055`.
+* **Fix**: Inspect `action_server.log` for traceback errors. Ensure python modules compile correctly by running: `PYTHONPATH=. pytest tests/test_actions.py`
+
+### 4. Home Assistant token missing or invalid
+* **Symptom**: Chat client responds with: `I scheduled the meeting in the assistant, but I could not add it to Home Assistant calendar. Reason: ...`
+* **Fix**: Open `.env` and verify the token `HA_TOKEN` and entity name `HA_CALENDAR_ENTITY`. Ensure the token has not expired and has admin/calendar scopes.
+
+### 5. Port already in use
+* **Symptom**: The servers fail to bind to ports `5005`, `5055`, or `8080`.
+* **Fix**: The `./run.sh` script automatically checks and terminates processes running on these ports before startup. If conflicts persist, kill them manually:
+  `kill -9 $(lsof -t -i:5005) $(lsof -t -i:5055) $(lsof -t -i:8080) 2>/dev/null || true`
+
+---
+
 ## Project Documentation
 
 Detailed system documentation is located in the [docs/](file:///home/qubaq/dev/meeting-scheduling-assistant/docs) directory:
 
 1. [Overview](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/overview.md) - System overview and main scenarios.
 2. [Architecture](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/architecture.md) - Rasa, Duckling, Core, and REST integrations.
-3. [Conversation Flows](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/conversation-flows.md) - Complete transcripts for all four core flows.
-4. [Home Assistant Integration](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/home-assistant-integration.md) - Token authentication, payload mappings, and API details.
-5. [Rasa Design](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/rasa-design.md) - Intents, slots, forms, actions, rules, and stories.
-6. [Setup and Run](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/setup-and-run.md) - Full list of setup, run, train, and validate commands.
-7. [Limitations and Future Work](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/limitations-and-future-work.md) - Exclusions and future roadmap features.
+3. [Web Interface](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/web-interface.md) - REST API connection, local storage persistence, styling.
+4. [Conversation Flows](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/conversation-flows.md) - Complete transcripts for all four core flows.
+5. [Home Assistant Integration](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/home-assistant-integration.md) - Token authentication, payload mappings, and API details.
+6. [Rasa Design](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/rasa-design.md) - Intents, slots, forms, actions, rules, and stories.
+7. [Setup and Run](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/setup-and-run.md) - Full list of setup, run, train, and validate commands.
+8. [Limitations and Future Work](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/limitations-and-future-work.md) - Exclusions and future roadmap features.

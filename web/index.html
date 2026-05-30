@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Scheduling Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">🗓️</div>
+      <div class="header-text">
+        <h1>Meeting Scheduling Assistant</h1>
+        <p class="subtitle">Rasa + Duckling + Home Assistant Calendar</p>
+      </div>
+    </header>
+
+    <!-- Connection / Status Banner -->
+    <div id="status-banner" class="status-banner hidden">
+      <span class="status-icon">⚠️</span>
+      <span id="status-message">Could not connect to the assistant. Please check that Rasa is running.</span>
+    </div>
+
+    <!-- Chat Area -->
+    <main class="chat-container">
+      <div id="chat-messages" class="chat-messages">
+        <!-- Welcome Message -->
+        <div class="message bot-message">
+          <div class="message-bubble">
+            Hi! I can help you schedule a meeting. You can write "schedule a meeting" to start or ask me to check your calendar, for example "what do I have tomorrow?".
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Helper Prompts -->
+    <div class="helper-prompts">
+      <span class="helper-label">Try:</span>
+      <button class="prompt-chip" onclick="sendSuggestedMessage('schedule a meeting')">schedule a meeting</button>
+      <button class="prompt-chip" onclick="sendSuggestedMessage('what do I have tomorrow?')">what do I have tomorrow?</button>
+      <button class="prompt-chip" onclick="sendSuggestedMessage('what do I have on Monday?')">what do I have on Monday?</button>
+    </div>
+
+    <!-- Input Footer -->
+    <footer class="input-container">
+      <input 
+        type="text" 
+        id="message-input" 
+        placeholder="Type your message here..." 
+        autocomplete="off"
+        maxlength="500"
+      >
+      <button id="send-button" type="button">
+        <span class="send-text">Send</span>
+        <svg class="send-icon" viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+      </button>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
