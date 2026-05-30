@@ -157,7 +157,7 @@ forms:
 
 responses:
   utter_greet:
-    - text: "Hi! I can help you schedule a meeting. You can write \"schedule a meeting\" to start."
+    - text: "Hi! I can help you schedule a meeting. You can write \"schedule a meeting\" to start or ask me to check your calendar, for example \"what do I have tomorrow?\"."
 
   utter_goodbye:
     - text: "Goodbye!"
