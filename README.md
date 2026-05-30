@@ -119,11 +119,11 @@ Bot: Meeting scheduled and added to Home Assistant calendar.
 
 ### 2. Rasa unavailable
 * **Symptom**: Red warning banner appears at the top of the browser chat page stating: `Could not connect to the assistant. Please check that Rasa is running.`
-* **Fix**: Check `rasa_server.log` for compilation or startup errors. Ensure Rasa is running on port `5005` by executing: `curl http://localhost:5005`
+* **Fix**: Check `logs/rasa_server.log` for compilation or startup errors. Ensure Rasa is running on port `5005` by executing: `curl http://localhost:5005`
 
 ### 3. Action server unavailable
 * **Symptom**: Rasa replies with warnings that it cannot run custom actions, or log output shows connection errors to port `5055`.
-* **Fix**: Inspect `action_server.log` for traceback errors. Ensure python modules compile correctly by running: `PYTHONPATH=. pytest tests/test_actions.py`
+* **Fix**: Inspect `logs/action_server.log` for traceback errors. Ensure python modules compile correctly by running: `PYTHONPATH=. pytest tests/test_actions.py`
 
 ### 4. Home Assistant token missing or invalid
 * **Symptom**: Chat client responds with: `I scheduled the meeting in the assistant, but I could not add it to Home Assistant calendar. Reason: ...`

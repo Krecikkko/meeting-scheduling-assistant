@@ -16,8 +16,7 @@ __pycache__/
 
 # Log files
 *.log
-action_server.log
-rasa_server.log
+logs/
 
 # Backup files
 *.bak

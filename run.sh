@@ -139,18 +139,21 @@ else
   echo "Skipping training."
 fi
 
+# Ensure logs directory exists
+mkdir -p logs
+
 echo "Starting Rasa action server..."
-rasa run actions --port 5055 > action_server.log 2>&1 &
+rasa run actions --port 5055 > logs/action_server.log 2>&1 &
 echo $! > .runtime/action.pid
 sleep 3
 
 echo "Starting Rasa REST server..."
-rasa run --enable-api --cors "*" --port 5005 > rasa_server.log 2>&1 &
+rasa run --enable-api --cors "*" --port 5005 > logs/rasa_server.log 2>&1 &
 echo $! > .runtime/rasa.pid
 sleep 5
 
 echo "Starting static web server..."
-python3 -m http.server 8080 --directory web > web_server.log 2>&1 &
+python3 -m http.server 8080 --directory web > logs/web_server.log 2>&1 &
 echo $! > .runtime/web.pid
 sleep 2
 
