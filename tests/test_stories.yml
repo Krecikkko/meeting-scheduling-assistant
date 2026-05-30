@@ -1,91 +1,62 @@
-#### This file contains tests to evaluate that your bot behaves as expected.
-#### If you want to learn more, please see the docs: https://rasa.com/docs/rasa/testing-your-assistant
-
 stories:
-- story: happy path 1
-  steps:
-  - user: |
-      hello there!
-    intent: greet
-  - action: utter_greet
-  - user: |
-      amazing
-    intent: mood_great
-  - action: utter_happy
-
-- story: happy path 2
-  steps:
-  - user: |
-      hello there!
-    intent: greet
-  - action: utter_greet
-  - user: |
-      amazing
-    intent: mood_great
-  - action: utter_happy
-  - user: |
-      bye-bye!
-    intent: goodbye
-  - action: utter_goodbye
-
-- story: sad path 1
-  steps:
-  - user: |
-      hello
-    intent: greet
-  - action: utter_greet
-  - user: |
-      not good
-    intent: mood_unhappy
-  - action: utter_cheer_up
-  - action: utter_did_that_help
-  - user: |
-      yes
-    intent: affirm
-  - action: utter_happy
-
-- story: sad path 2
-  steps:
-  - user: |
-      hello
-    intent: greet
-  - action: utter_greet
-  - user: |
-      not good
-    intent: mood_unhappy
-  - action: utter_cheer_up
-  - action: utter_did_that_help
-  - user: |
-      not really
-    intent: deny
-  - action: utter_goodbye
-
-- story: sad path 3
+- story: schedule meeting with direct time test
   steps:
   - user: |
       hi
     intent: greet
   - action: utter_greet
   - user: |
-      very terrible
-    intent: mood_unhappy
-  - action: utter_cheer_up
-  - action: utter_did_that_help
+      I want to schedule a meeting
+    intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: meeting_title
   - user: |
-      no
-    intent: deny
-  - action: utter_goodbye
+      Project planning
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - meeting_title: Project planning
+      - requested_slot: participants
+  - user: |
+      Anna and Tom
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - participants: Anna and Tom
+      - requested_slot: duration
+  - user: |
+      45 minutes
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - duration: 45 minutes
+      - requested_slot: preferred_time
+  - user: |
+      tomorrow at 3 pm
+    intent: provide_time
+  - action: meeting_form
+  - active_loop: null
+  - slot_was_set:
+      - preferred_time: tomorrow at 3 pm
+      - requested_slot: null
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+  - user: |
+      confirm
+    intent: confirm
+  - action: action_create_meeting_summary
 
-- story: say goodbye
+- story: standalone calendar query test
   steps:
   - user: |
-      bye-bye!
-    intent: goodbye
-  - action: utter_goodbye
-
-- story: bot challenge
-  steps:
-  - user: |
-      are you a bot?
-    intent: bot_challenge
-  - action: utter_iamabot
+      what do I have tomorrow?
+    intent: ask_calendar_events
+  - action: calendar_query_form
+  - active_loop: calendar_query_form
+  - active_loop: null
+  - action: action_show_calendar_events

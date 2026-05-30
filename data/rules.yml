@@ -24,17 +24,17 @@ rules:
       - action: meeting_form
       - active_loop: null
       - action: action_suggest_meeting_slots
-      - action: utter_confirm_meeting
+      - action: action_prepare_confirmation_summary
 
   - rule: Confirm proposed meeting
     steps:
-      - action: utter_confirm_meeting
+      - action: action_prepare_confirmation_summary
       - intent: confirm
       - action: action_create_meeting_summary
 
   - rule: Reject proposed meeting
     steps:
-      - action: utter_confirm_meeting
+      - action: action_prepare_confirmation_summary
       - intent: deny
       - action: action_clear_meeting_slots
       - action: utter_cancelled
@@ -42,6 +42,7 @@ rules:
   - rule: Cancel scheduling
     steps:
       - intent: cancel
+      - action: action_clear_meeting_slots
       - action: action_deactivate_loop
       - active_loop: null
       - action: utter_cancelled
@@ -60,3 +61,56 @@ rules:
     steps:
       - intent: nlu_fallback
       - action: utter_default
+
+  # Calendar Query Rules
+  - rule: Activate calendar query form
+    steps:
+      - intent: ask_calendar_events
+      - action: calendar_query_form
+      - active_loop: calendar_query_form
+
+  - rule: Submit calendar query form
+    condition:
+      - active_loop: calendar_query_form
+    steps:
+      - action: calendar_query_form
+      - active_loop: null
+      - action: action_show_calendar_events
+
+  # Meeting Form Interruption Rule
+  - rule: Interrupted meeting form with calendar query
+    condition:
+      - active_loop: meeting_form
+    steps:
+      - intent: ask_calendar_events
+      - action: action_show_calendar_events
+      - action: meeting_form
+      - active_loop: meeting_form
+
+  # Change Field Rules
+  - rule: Activate change field form
+    steps:
+      - intent: change_meeting_field
+      - action: action_set_requested_change_field
+      - action: change_meeting_field_form
+      - active_loop: change_meeting_field_form
+
+  - rule: Submit change field form
+    condition:
+      - active_loop: change_meeting_field_form
+    steps:
+      - action: change_meeting_field_form
+      - active_loop: null
+      - action: action_apply_meeting_change
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
+
+  # Change Field Form Interruption Rule
+  - rule: Interrupted change field form with calendar query
+    condition:
+      - active_loop: change_meeting_field_form
+    steps:
+      - intent: ask_calendar_events
+      - action: action_show_calendar_events
+      - action: change_meeting_field_form
+      - active_loop: change_meeting_field_form

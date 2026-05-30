@@ -1,29 +1,58 @@
 version: "3.1"
 
 stories:
-  - story: schedule a meeting happy path
+  - story: schedule meeting with direct time
     steps:
-      - intent: greet
-      - action: utter_greet
       - intent: schedule_meeting
       - action: meeting_form
       - active_loop: meeting_form
       - active_loop: null
       - action: action_suggest_meeting_slots
-      - action: utter_confirm_meeting
+      - action: action_prepare_confirmation_summary
       - intent: confirm
       - action: action_create_meeting_summary
 
-  - story: schedule a meeting directly
+  - story: schedule meeting and check calendar before time selection
+    steps:
+      - intent: schedule_meeting
+      - action: meeting_form
+      - active_loop: meeting_form
+      - intent: ask_calendar_events
+      - action: action_show_calendar_events
+      - action: meeting_form
+      - active_loop: meeting_form
+      - active_loop: null
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
+      - intent: confirm
+      - action: action_create_meeting_summary
+
+  - story: change one field before confirmation
     steps:
       - intent: schedule_meeting
       - action: meeting_form
       - active_loop: meeting_form
       - active_loop: null
       - action: action_suggest_meeting_slots
-      - action: utter_confirm_meeting
+      - action: action_prepare_confirmation_summary
+      - intent: change_meeting_field
+      - action: action_set_requested_change_field
+      - action: change_meeting_field_form
+      - active_loop: change_meeting_field_form
+      - active_loop: null
+      - action: action_apply_meeting_change
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
       - intent: confirm
       - action: action_create_meeting_summary
+
+  - story: ask calendar events for a day
+    steps:
+      - intent: ask_calendar_events
+      - action: calendar_query_form
+      - active_loop: calendar_query_form
+      - active_loop: null
+      - action: action_show_calendar_events
 
   - story: ask for help
     steps:

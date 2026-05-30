@@ -54,7 +54,6 @@ nlu:
       - Monday at 3 pm
       - next Tuesday morning
       - tomorrow afternoon
-      - Friday at 10
       - next week
       - on Wednesday at 11
       - after lunch tomorrow
@@ -69,6 +68,60 @@ nlu:
       - I am available tomorrow between 9 and 12
       - next Monday at 3 pm works for me
       - I am free for one hour on Tuesday
+
+  - intent: ask_calendar_events
+    examples: |
+      - what do I have tomorrow?
+      - show my events on Monday
+      - am I busy on Friday?
+      - check my calendar for tomorrow
+      - what do I have on Sunday?
+      - show my calendar
+      - what is on my calendar for Friday?
+      - do I have any events tomorrow?
+      - what is my schedule for Monday?
+      - what do I have on Monday?
+      - what do I have tomorrow morning?
+      - check my calendar
+      - show events
+      - what do I have on Tuesday?
+      - what do I have on Wednesday?
+      - what do I have on Thursday?
+      - what do I have on Saturday?
+      - what do I have on Friday?
+
+  - intent: provide_time
+    examples: |
+      - tomorrow at 3 pm
+      - schedule it at 10:30
+      - Friday at 10
+      - schedule it at tomorrow 16:30
+      - tomorrow at 16:30
+      - Friday at 10:00
+      - tomorrow at 3pm
+      - on Monday at 9 am
+      - tomorrow at 10:30
+      - next Monday at 11
+      - Friday at 10
+      - next Monday at 3 pm
+      - tomorrow at 3 pm
+      - tomorrow at 10:30
+
+  - intent: change_meeting_field
+    examples: |
+      - change [duration](meeting_field)
+      - change [time](meeting_field)
+      - change [title](meeting_field)
+      - change [participants](meeting_field)
+      - change the [duration](meeting_field)
+      - change the [time](meeting_field)
+      - change the [title](meeting_field)
+      - change the [participants](meeting_field)
+      - I want to change the [time](meeting_field)
+      - can I change the [participants](meeting_field)
+      - change [duration](meeting_field) to 1 hour
+      - change [time](meeting_field) to Friday at 10
+      - change [title](meeting_field) to Project planning
 
   - intent: confirm
     examples: |
@@ -131,7 +184,7 @@ nlu:
 
   - intent: change_time
     examples: |
-      - change the time
+      - reschedule the meeting
       - choose another time
       - reschedule it
       - can we move it

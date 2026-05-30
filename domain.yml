@@ -6,10 +6,16 @@ intents:
   - schedule_meeting
   - inform
   - provide_availability
+  - ask_calendar_events
+  - provide_time
   - confirm
   - deny
   - cancel
   - ask_help
+  - change_meeting_field
+  - change_title
+  - change_participants
+  - change_duration
   - change_time
   - bot_challenge
   - nlu_fallback
@@ -21,6 +27,7 @@ entities:
   - time
   - duration
   - number
+  - meeting_field
 
 slots:
   meeting_title:
@@ -61,13 +68,77 @@ slots:
     mappings:
       - type: from_entity
         entity: time
+        not_intent: ask_calendar_events
         conditions:
           - active_loop: meeting_form
             requested_slot: preferred_time
       - type: from_text
+        not_intent: ask_calendar_events
         conditions:
           - active_loop: meeting_form
             requested_slot: preferred_time
+
+  preferred_time_iso:
+    type: text
+    influence_conversation: false
+    mappings: []
+
+  calculated_end_time_iso:
+    type: text
+    influence_conversation: false
+    mappings: []
+
+  calendar_query_date:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: time
+      - type: from_text
+        conditions:
+          - active_loop: calendar_query_form
+            requested_slot: calendar_query_date
+
+  calendar_query_date_iso:
+    type: text
+    influence_conversation: false
+    mappings: []
+
+  last_calendar_events:
+    type: list
+    influence_conversation: false
+    mappings: []
+
+  requested_change_field:
+    type: categorical
+    values:
+      - title
+      - participants
+      - duration
+      - time
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: meeting_field
+      - type: from_text
+        conditions:
+          - active_loop: change_meeting_field_form
+            requested_slot: requested_change_field
+
+  changed_field_value:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_text
+        not_intent: ask_calendar_events
+        conditions:
+          - active_loop: change_meeting_field_form
+            requested_slot: changed_field_value
+
+  awaiting_meeting_confirmation:
+    type: bool
+    influence_conversation: false
+    mappings: []
 
 forms:
   meeting_form:
@@ -76,28 +147,58 @@ forms:
       - participants
       - duration
       - preferred_time
+  calendar_query_form:
+    required_slots:
+      - calendar_query_date
+  change_meeting_field_form:
+    required_slots:
+      - requested_change_field
+      - changed_field_value
 
 responses:
   utter_greet:
-    - text: "Hi! I can help you schedule a meeting."
+    - text: "Hi! I can help you schedule a meeting. You can write \"schedule a meeting\" to start."
 
   utter_goodbye:
     - text: "Goodbye!"
 
   utter_ask_meeting_title:
-    - text: "What is the meeting about?"
+    - text: "What is the meeting about? For example: 'Project planning'."
 
   utter_ask_participants:
-    - text: "Who should participate? You can give names or emails."
+    - text: "Who should participate? You can give names or emails, for example: 'Anna and Tom' or 'anna@example.com'."
 
   utter_ask_duration:
-    - text: "How long should the meeting be?"
+    - text: "How long should the meeting be? For example: '30 minutes' or '1 hour'."
 
   utter_ask_preferred_time:
-    - text: "When would you like to schedule it?"
+    - text: "When would you like to schedule it? You can write a specific time, for example 'tomorrow at 3 pm', or ask me to check your calendar, for example 'what do I have tomorrow?'."
+
+  utter_ask_calendar_query_date:
+    - text: "For which day should I check your calendar? You can write for example 'tomorrow', 'next Monday', or '2026-06-03'."
+
+  utter_ask_change_field:
+    - text: "What would you like to change? You can write 'title', 'participants', 'duration', or 'time'."
+
+  utter_ask_changed_field_value:
+    - text: "What is the new value?"
+
+  utter_after_calendar_events_in_meeting_flow:
+    - text: "Now write the time you want for the new meeting, for example 'tomorrow at 10:30'. You can also ask about another day."
+
+  utter_after_calendar_events_standalone:
+    - text: "You can ask about another day, for example 'what do I have on Friday?', or write 'schedule a meeting' to create a new event."
 
   utter_confirm_meeting:
-    - text: "Please confirm: meeting '{meeting_title}', duration {duration}, preferred time {preferred_time}, participants: {participants}."
+    - text: |
+        Please confirm:
+        Title: {meeting_title}
+        Participants: {participants}
+        Duration: {duration}
+        Start: {preferred_time}
+        End: {calculated_end_time_iso}
+
+        You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', or 'change time'.
 
   utter_meeting_scheduled:
     - text: "Meeting scheduled! Title: {meeting_title}. Time: {preferred_time}. Duration: {duration}. Participants: {participants}."
@@ -118,6 +219,14 @@ actions:
   - action_suggest_meeting_slots
   - action_create_meeting_summary
   - action_clear_meeting_slots
+  - action_show_calendar_events
+  - action_prepare_confirmation_summary
+  - action_set_requested_change_field
+  - action_apply_meeting_change
+  - action_recalculate_meeting_end_time
+  - action_ask_changed_field_value
+  - validate_meeting_form
+  - validate_change_meeting_field_form
 
 session_config:
   session_expiration_time: 60

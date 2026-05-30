@@ -1,144 +1,122 @@
 # Meeting Scheduling Assistant
 
-This repository contains a simple dialogue system that acts as a meeting scheduling assistant (similar to a Doodle bot). It is built as a university project for the course **"Introduction to Speech and Natural Language Processing" / IPFLN**.
-
-The assistant leverages:
-* **Rasa NLU** for intent classification and text processing.
-* **Duckling Entity Extractor** (running in Docker) to automatically extract structured dates, times, durations, and email addresses.
-* **Rasa Forms and Slots** for dialogue state management.
-* **Custom Actions** (Rasa SDK) for confirming and scheduling meetings.
+An intelligent dialogue assistant built on **Rasa Open Source** and integrated with **Home Assistant Calendar** and **Duckling**. This assistant lets users check their schedules, arrange meetings, and modify details on the fly.
 
 ---
 
-## Prerequisites
+## Features
 
-* **OS**: Linux / WSL Ubuntu
-* **Python**: Python 3.10
-* **Docker**: Docker Desktop with WSL integration enabled
-
----
-
-## File Structure
-
-* `requirements.txt` - Pinned Python dependencies (`rasa==3.6.21`, `rasa-sdk==3.6.2`).
-* `docker-compose.yml` - Docker setup running the Duckling service on port `8000`.
-* `config.yml` - Rasa NLU/Core pipelines, including `DucklingEntityExtractor`.
-* `domain.yml` - Custom slots, entities, form definitions, and response templates.
-* `endpoints.yml` - Configures the webhook connection to the Rasa custom action server.
-* `data/nlu.yml` - Training examples for user intents.
-* `data/rules.yml` - Core rules for greetings, form handling, and conversational fallback.
-* `data/stories.yml` - Simple story scripts demonstrating bot flows.
-* `actions/actions.py` - Custom action endpoints processing the slot variables.
-* `run.sh` - Bash script to automate setting up containers, validation, training, and launching the interactive Rasa shell.
-* `stop.sh` - Bash script to cleanly shut down the Duckling service.
-* `LICENSE` - MIT License terms.
+1. **Direct Meeting Scheduling**: Arrange meetings by topic, duration, time, and participants.
+2. **Calendar Interruption queries**: Ask "what do I have tomorrow?" while selecting a meeting time. The assistant lists availability without losing your form progress.
+3. **Flexible Amendments**: Change specific fields (e.g. title, participants, duration, time) at the confirmation stage before event creation.
+4. **Standalone Calendar Queries**: Ask directly about schedule availability (e.g., "what do I have on Friday?").
+5. **Secure Home Assistant Sync**: Updates your Home Assistant Calendar API automatically, securely masking API tokens in all logs and user messages.
 
 ---
 
-## Getting Started
+## Architecture Overview
 
-### 1. Initialize Virtual Environment (First time)
+```text
+User
+  ↓
+Rasa NLU + Duckling
+  ↓
+Dialogue Management: forms, rules, stories
+  ↓
+Custom Actions
+  ↓
+Home Assistant Calendar API
+```
 
-Create a Python 3.10 virtual environment and install the dependencies:
+* **Rasa Open Source**: Manages conversation loops, stories, and forms.
+* **Duckling**: Extracted via Docker for standard time/duration formats.
+* **Custom Action Server**: Calculates dates/times, fetches events, and pushes meetings to HA.
+
+---
+
+## Configuration & Environment Variables
+
+Copy `.env.example` to `.env` and fill in the parameters:
+```bash
+HA_URL=https://your-home-assistant-domain-or-ip:8123
+HA_TOKEN=your_long_lived_access_token
+HA_CALENDAR_ENTITY=calendar.your_calendar_entity
+DEFAULT_MEETING_DURATION_MINUTES=30
+TIMEZONE=Europe/Warsaw
+```
+
+---
+
+## Setup & How to Run
+
+### 1. Environment Setup
 ```bash
 python3.10 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the Assistant
-
-The `./run.sh` script automates the launch sequence. It starts Duckling, validates files, trains the model, launches the action server, and enters the Rasa interactive shell:
+### 2. Run Duckling (Docker)
 ```bash
-./run.sh
+docker compose up -d duckling
 ```
 
-#### Run Options:
-* **Skip training** (if already trained):
-  ```bash
-  ./run.sh --skip-train
-  ```
-* **Stop Duckling container** automatically when exiting the shell:
-  ```bash
-  ./run.sh --stop-duckling
-  ```
-* **Skip training AND stop Duckling** on exit:
-  ```bash
-  ./run.sh --skip-train --stop-duckling
-  ```
-
-### 3. Stop the Duckling container manually
-To shut down the background Duckling service at any time:
+### 3. Run Custom Actions Server
 ```bash
-./stop.sh
+source .venv/bin/activate
+rasa run actions
 ```
+
+### 4. Run Rasa Shell
+```bash
+source .venv/bin/activate
+rasa shell
+```
+
+Alternatively, use the convenience `./run.sh` or stop services with `./stop.sh`.
 
 ---
 
-## Supported Dialog Flow
-
-The assistant is configured to support conversations similar to the following:
+## Demo Conversation (Ammendment Flow)
 
 ```text
-User: hi
-Bot: Hi! I can help you schedule a meeting.
-
-User: I want to schedule a meeting
-Bot: What is the meeting about?
-
+User: schedule a meeting
+Bot: What is the meeting about? For example: "Project planning".
 User: Project planning
-Bot: Who should participate? You can give names or emails.
-
+Bot: Who should participate? You can give names or emails, for example: "Anna and Tom".
 User: Anna and Tom
-Bot: How long should the meeting be?
-
-User: 45 minutes
+Bot: How long should the meeting be? For example: "30 minutes" or "1 hour".
+User: 30 minutes
 Bot: When would you like to schedule it?
+User: tomorrow at 3 pm
+Bot: Please confirm:
+      Title: Project planning
+      Participants: Anna and Tom
+      Duration: 30 minutes
+      Start: tomorrow at 3 pm
+      End: 2026-05-31T15:30:00+02:00
 
-User: next Monday at 3 pm
-Bot: I found a possible slot for this meeting.
-Bot: Please confirm: meeting 'Project planning', duration 45 minutes, preferred time next Monday at 3 pm, participants: Anna and Tom.
-
-User: yes
-Bot: Meeting scheduled! Title: Project planning. Time: next Monday at 3 pm. Duration: 45 minutes. Participants: Anna and Tom.
+      You can write "confirm", or write "change title", "change participants", "change duration", or "change time".
+User: change duration
+Bot: What should the new duration be? For example: "30 minutes" or "1 hour".
+User: 1 hour
+Bot: Updated duration to 1 hour. The end time was recalculated.
+      Please confirm:
+      ...
+User: confirm
+Bot: Meeting scheduled and added to Home Assistant calendar.
 ```
 
 ---
 
-## Home Assistant Calendar Integration
+## Project Documentation
 
-This assistant integrates with a Home Assistant calendar using its REST API to automatically create calendar events once a meeting is confirmed.
+Detailed system documentation is located in the [docs/](file:///home/qubaq/dev/meeting-scheduling-assistant/docs) directory:
 
-### Configuration
-
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Configure the following variables inside `.env`:
-   * `HA_URL`: The base URL of your Home Assistant instance (e.g., `http://homeassistant.local:8123`).
-   * `HA_TOKEN`: A Long-Lived Access Token. You can generate one in Home Assistant by navigating to your user profile page, scrolling to the bottom, and clicking **Create Token** under *Long-Lived Access Tokens*.
-   * `HA_CALENDAR_ENTITY`: The entity ID of the target calendar (e.g., `calendar.personal`).
-   * `DEFAULT_MEETING_DURATION_MINUTES`: Default duration in minutes (e.g., `30`) if not provided or parsed.
-   * `TIMEZONE`: The local timezone used for localizing naive times parsed from the conversation (e.g., `Europe/Lisbon`).
-
-### API Implementation Details
-
-* **Service Endpoint**: `POST /api/services/calendar/create_event`
-* **JSON Payload**:
-  * `entity_id`: Map from environment variable `HA_CALENDAR_ENTITY`
-  * `summary`: Map from Rasa slot `meeting_title`
-  * `description`: Map from Rasa slot `participants` (formatted as `Participants: {participants}`)
-  * `start_date_time`: Start time (ISO string format) parsed from the `preferred_time` slot
-  * `end_date_time`: Calculated as `start_time + duration` (ISO string format)
-* **Error handling & security**:
-  * The access token is protected and never leaked in console logs, file logs, or user messages.
-  * If the Home Assistant API call fails (due to a connection issue, incorrect token, or missing entity), the custom action catches the error and replies with a fallback warning to the user:
-    `I scheduled the meeting in the assistant, but I could not add it to Home Assistant calendar. Reason: {reason}`
-    This ensures the dialogue flow completes successfully even when the calendar is unreachable.
-
----
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. [Overview](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/overview.md) - System overview and main scenarios.
+2. [Architecture](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/architecture.md) - Rasa, Duckling, Core, and REST integrations.
+3. [Conversation Flows](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/conversation-flows.md) - Complete transcripts for all four core flows.
+4. [Home Assistant Integration](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/home-assistant-integration.md) - Token authentication, payload mappings, and API details.
+5. [Rasa Design](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/rasa-design.md) - Intents, slots, forms, actions, rules, and stories.
+6. [Setup and Run](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/setup-and-run.md) - Full list of setup, run, train, and validate commands.
+7. [Limitations and Future Work](file:///home/qubaq/dev/meeting-scheduling-assistant/docs/limitations-and-future-work.md) - Exclusions and future roadmap features.
