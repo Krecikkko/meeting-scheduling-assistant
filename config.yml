@@ -22,7 +22,7 @@ pipeline:
   - email
   - number
   locale: "en_GB"
-  timezone: "Europe/Warsaw"
+  timezone: "Europe/Lisbon"
 - name: EntitySynonymMapper
 - name: FallbackClassifier
   threshold: 0.4

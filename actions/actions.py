@@ -17,8 +17,11 @@ from rasa_sdk.forms import FormValidationAction
 # Set up logging securely
 logger = logging.getLogger(__name__)
 
+import sys
 # Load environment variables from .env if present
-load_dotenv()
+# If running tests, do not override environment variables set by the test suite
+is_testing = "pytest" in sys.modules or "unittest" in sys.modules or any("pytest" in arg for arg in sys.argv)
+load_dotenv(override=not is_testing)
 
 HA_URL = os.getenv("HA_URL", "http://homeassistant.local:8123")
 HA_TOKEN = os.getenv("HA_TOKEN")
