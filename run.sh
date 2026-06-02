@@ -147,28 +147,36 @@ rasa run actions --port 5055 > logs/action_server.log 2>&1 &
 echo $! > .runtime/action.pid
 sleep 3
 
-echo "Starting Rasa REST server..."
-rasa run --enable-api --cors "*" --port 5005 > logs/rasa_server.log 2>&1 &
-echo $! > .runtime/rasa.pid
-sleep 5
+if [ "$NO_BROWSER" = true ]; then
+  echo ""
+  echo "=========================================================="
+  echo "Rasa console chat (--no-browser active)"
+  echo "Starting Rasa shell... (Actions are running on port 5055)"
+  echo "=========================================================="
+  echo ""
+  rasa shell
+else
+  echo "Starting Rasa REST server..."
+  rasa run --enable-api --cors "*" --port 5005 > logs/rasa_server.log 2>&1 &
+  echo $! > .runtime/rasa.pid
+  sleep 5
 
-echo "Starting static web server..."
-python3 -m http.server 8080 --directory web > logs/web_server.log 2>&1 &
-echo $! > .runtime/web.pid
-sleep 2
+  echo "Starting static web server..."
+  python3 -m http.server 8080 --directory web > logs/web_server.log 2>&1 &
+  echo $! > .runtime/web.pid
+  sleep 2
 
-echo ""
-echo "=========================================================="
-echo "Assistant is up and running!"
-echo "--------------------------------------------------------=="
-echo "  - Chat UI:        http://localhost:8080"
-echo "  - Rasa REST API:  http://localhost:5005"
-echo "  - Action server:  http://localhost:5055"
-echo "  - Duckling:       http://localhost:8000"
-echo "=========================================================="
-echo ""
+  echo ""
+  echo "=========================================================="
+  echo "Assistant is up and running!"
+  echo "--------------------------------------------------------=="
+  echo "  - Chat UI:        http://localhost:8080"
+  echo "  - Rasa REST API:  http://localhost:5005"
+  echo "  - Action server:  http://localhost:5055"
+  echo "  - Duckling:       http://localhost:8000"
+  echo "=========================================================="
+  echo ""
 
-if [ "$NO_BROWSER" = false ]; then
   if command -v xdg-open >/dev/null 2>&1; then
     echo "Opening Chat UI in browser..."
     xdg-open "http://localhost:8080" || true
@@ -176,11 +184,11 @@ if [ "$NO_BROWSER" = false ]; then
     echo "Opening Chat UI in browser..."
     open "http://localhost:8080" || true
   fi
+
+  echo "Press Ctrl+C to stop all services."
+
+  # Keep running
+  while true; do
+    sleep 1
+  done
 fi
-
-echo "Press Ctrl+C to stop all services."
-
-# Keep running
-while true; do
-  sleep 1
-done
