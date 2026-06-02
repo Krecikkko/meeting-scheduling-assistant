@@ -8,10 +8,12 @@ An intelligent dialogue assistant built on **Rasa Open Source** and integrated w
 
 1. **Modern Browser UI**: An interactive chat room interface served at `http://localhost:8080` to communicate with the assistant.
 2. **Direct Meeting Scheduling**: Arrange meetings by topic, duration, time, and participants.
-3. **Calendar Interruption queries**: Ask "what do I have tomorrow?" while selecting a meeting time. The assistant lists availability without losing your form progress.
-4. **Flexible Amendments**: Change specific fields (e.g. title, participants, duration, time) at the confirmation stage before event creation.
-5. **Standalone Calendar Queries**: Ask directly about schedule availability (e.g., "what do I have on Friday?").
-6. **Secure Home Assistant Sync**: Updates your Home Assistant Calendar API automatically, securely masking API tokens in all logs and user messages.
+3. **Optional Details**: Supports optional `location` and `description` details, extracting them automatically and sending them to Home Assistant.
+4. **Calendar Interruption queries**: Ask "what do I have tomorrow?" while selecting a meeting time. The assistant lists availability without losing your form progress.
+5. **Flexible Amendments & Direct Corrections**: Change specific fields (e.g. title, participants, duration, time, location, description) at the confirmation stage. Supports direct corrections (e.g., "Change the time to 15:30") and updating multiple fields in a single sentence (e.g., "Actually make it about Sprint review and invite Pedro too").
+6. **Smart Participant Normalization**: Automatically combines participant names and emails (e.g. "Ana (ana@example.com)"), formats lists, and supports adding/removing participants dynamically (e.g. "Add Pedro", "Remove Ana").
+7. **Standalone Calendar Queries**: Ask directly about schedule availability (e.g., "what do I have on Friday?").
+8. **Secure Home Assistant Sync**: Updates your Home Assistant Calendar API automatically, securely masking API tokens in all logs and user messages.
 
 ---
 

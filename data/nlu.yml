@@ -37,6 +37,14 @@ nlu:
       - schedule a meeting tomorrow at 3 pm
       - arrange a one hour meeting next Monday
       - set up a call with anna@example.com
+      - I would like to schedule a meeting about [project planning](meeting_title) with [Ana](participant) tomorrow at 14:00 for 1 hour
+      - Book a 30 minute call with [João](participant) and [Maria](participant) next Friday morning about the [report](meeting_title)
+      - Schedule a meeting about [budget discussion](meeting_title)
+      - Book [database migration planning](meeting_title)
+      - schedule a meeting with [Ana](participant)
+      - arrange a meeting about [thesis supervision](meeting_title)
+      - schedule a call with [João Silva](participant)
+      - I would like to schedule a meeting about [project planning](meeting_title) with [Ana](participant) tomorrow at 14:00 for 1 hour in [room 2.3](location)
 
   - intent: inform
     examples: |
@@ -58,6 +66,32 @@ nlu:
       - on Wednesday at 11
       - after lunch tomorrow
       - in the morning
+      - I want the meeting to be about [thesis supervision](meeting_title)
+      - [Project planning](meeting_title)
+      - Let’s call it [Sprint review](meeting_title)
+      - The title is [Budget discussion](meeting_title)
+      - with [Ana](participant)
+      - with [João Silva](participant)
+      - invite [Maria](participant)
+      - with [Ana](participant), [Pedro](participant), and [Laura](participant)
+      - send it to [maria@example.com](email)
+      - invite [Jakub](participant) at [jakub@example.com](email)
+      - in [room 2.3](location)
+      - at [DETI](location)
+      - on [Google Meet](location)
+      - in the [main lab](location)
+      - at the [library](location)
+      - The agenda is [to discuss the prototype and next steps](meeting_description)
+      - Add a note that [we need to review the report](meeting_description)
+      - Description: [discuss project risks](meeting_description)
+      - We need to talk about [implementation, testing and presentation](meeting_description)
+      - [Thesis supervision](meeting_title)
+      - [Sprint review](meeting_title)
+      - [Budget discussion](meeting_title)
+      - [online](location)
+      - [room 2.3](location)
+      - [DETI](location)
+      - [Google Meet](location)
 
   - intent: provide_availability
     examples: |
@@ -122,6 +156,21 @@ nlu:
       - change [duration](meeting_field) to 1 hour
       - change [time](meeting_field) to Friday at 10
       - change [title](meeting_field) to Project planning
+      - Can you move it to 15:30?
+      - Change the [time](meeting_field) to 15:30
+      - Actually make it two hours
+      - Add [Pedro](participant) as well
+      - Remove [Ana](participant)
+      - Change the [title](meeting_field) to [Sprint review](meeting_title)
+      - Make it [online](location)
+      - Change the [location](meeting_field) to [room 2.3](location)
+      - Change [description](meeting_field) to [review the prototype](meeting_description)
+      - Actually make it about [Sprint review](meeting_title) and invite [Pedro](participant) too
+      - add [Pedro](participant)
+      - invite [Pedro](participant)
+      - delete [Ana](participant)
+      - No, change the [time](meeting_field)
+      - No, change the [duration](meeting_field)
 
   - intent: confirm
     examples: |
@@ -141,6 +190,10 @@ nlu:
       - that is fine
       - schedule it
       - create the meeting
+      - Yes, confirm it
+      - confirm it
+      - do it
+      - proceed
 
   - intent: deny
     examples: |

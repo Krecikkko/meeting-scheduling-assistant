@@ -60,3 +60,109 @@ stories:
   - active_loop: calendar_query_form
   - active_loop: null
   - action: action_show_calendar_events
+
+- story: schedule meeting with all details in one message test
+  steps:
+  - user: |
+      I would like to schedule a meeting about project planning with Ana tomorrow at 14:00 for 1 hour
+    intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - active_loop: null
+  - slot_was_set:
+      - meeting_title: project planning
+      - participants: Ana
+      - duration: 1 hour
+      - preferred_time: tomorrow at 14:00
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+
+- story: change multiple fields before confirmation test
+  steps:
+  - user: |
+      I want to schedule a meeting
+    intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: meeting_title
+  - user: |
+      Project planning
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: participants
+  - user: |
+      Ana
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: duration
+  - user: |
+      30 minutes
+    intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: preferred_time
+  - user: |
+      tomorrow at 3 pm
+    intent: provide_time
+  - action: meeting_form
+  - active_loop: null
+  - slot_was_set:
+      - preferred_time: tomorrow at 3 pm
+      - requested_slot: null
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+  - user: |
+      Actually make it about Sprint review and invite Pedro too
+    intent: change_meeting_field
+  - action: action_set_requested_change_field
+  - slot_was_set:
+      - requested_change_field: done
+      - changed_field_value: done
+      - meeting_title: Sprint review
+      - participants: Ana and Pedro
+  - action: change_meeting_field_form
+  - active_loop: change_meeting_field_form
+  - active_loop: null
+  - slot_was_set:
+      - requested_change_field: null
+      - changed_field_value: null
+  - action: action_apply_meeting_change
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+  - user: |
+      confirm
+    intent: confirm
+  - action: action_create_meeting_summary
+
+- story: cancel scheduling test
+  steps:
+  - user: |
+      I want to schedule a meeting
+    intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+      - requested_slot: meeting_title
+  - user: |
+      Cancel this meeting
+    intent: cancel
+  - action: action_clear_meeting_slots
+  - slot_was_set:
+      - meeting_title: null
+      - participants: null
+      - duration: null
+      - preferred_time: null
+      - preferred_time_iso: null
+      - calculated_end_time_iso: null
+      - location: null
+      - meeting_description: null
+      - awaiting_meeting_confirmation: null
+  - action: action_deactivate_loop
+  - active_loop: null
+  - action: utter_cancelled

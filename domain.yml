@@ -28,12 +28,16 @@ entities:
   - duration
   - number
   - meeting_field
+  - location
+  - meeting_description
 
 slots:
   meeting_title:
     type: text
     influence_conversation: false
     mappings:
+      - type: from_entity
+        entity: meeting_title
       - type: from_text
         conditions:
           - active_loop: meeting_form
@@ -43,6 +47,10 @@ slots:
     type: text
     influence_conversation: false
     mappings:
+      - type: from_entity
+        entity: participant
+      - type: from_entity
+        entity: email
       - type: from_text
         conditions:
           - active_loop: meeting_form
@@ -54,9 +62,6 @@ slots:
     mappings:
       - type: from_entity
         entity: duration
-        conditions:
-          - active_loop: meeting_form
-            requested_slot: duration
       - type: from_text
         conditions:
           - active_loop: meeting_form
@@ -69,14 +74,25 @@ slots:
       - type: from_entity
         entity: time
         not_intent: ask_calendar_events
-        conditions:
-          - active_loop: meeting_form
-            requested_slot: preferred_time
       - type: from_text
         not_intent: ask_calendar_events
         conditions:
           - active_loop: meeting_form
             requested_slot: preferred_time
+
+  location:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: location
+
+  meeting_description:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: meeting_description
 
   preferred_time_iso:
     type: text
@@ -116,6 +132,8 @@ slots:
       - participants
       - duration
       - time
+      - location
+      - description
     influence_conversation: false
     mappings:
       - type: from_entity
@@ -163,22 +181,22 @@ responses:
     - text: "Goodbye!"
 
   utter_ask_meeting_title:
-    - text: "What is the meeting about? For example: 'Project planning'."
+    - text: "What should the meeting be about? You can answer with a short title, for example: Project planning."
 
   utter_ask_participants:
-    - text: "Who should participate? You can give names or emails, for example: 'Anna and Tom' or 'anna@example.com'."
+    - text: "Who should attend the meeting? You can give names, emails, or both."
 
   utter_ask_duration:
-    - text: "How long should the meeting be? For example: '30 minutes' or '1 hour'."
+    - text: "How long should the meeting last? For example: 30 minutes or 1 hour."
 
   utter_ask_preferred_time:
-    - text: "When would you like to schedule it? You can write a specific time, for example 'tomorrow at 3 pm', or ask me to check your calendar, for example 'what do I have tomorrow?'."
+    - text: "When should the meeting take place? For example: tomorrow at 14:00 or next Friday morning."
 
   utter_ask_calendar_query_date:
     - text: "For which day should I check your calendar? You can write for example 'tomorrow', 'next Monday', or '2026-06-03'."
 
   utter_ask_change_field:
-    - text: "What would you like to change? You can write 'title', 'participants', 'duration', or 'time'."
+    - text: "What would you like to change? You can write 'title', 'participants', 'duration', 'time', 'location', or 'description'."
 
   utter_ask_changed_field_value:
     - text: "What is the new value?"
@@ -198,7 +216,7 @@ responses:
         Start: {preferred_time}
         End: {calculated_end_time_iso}
 
-        You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', or 'change time'.
+        You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', 'change time', 'change location', or 'change description'.
 
   utter_meeting_scheduled:
     - text: "Meeting scheduled! Title: {meeting_title}. Time: {preferred_time}. Duration: {duration}. Participants: {participants}."

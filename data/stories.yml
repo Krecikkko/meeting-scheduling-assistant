@@ -63,3 +63,33 @@ stories:
     steps:
       - intent: bot_challenge
       - action: utter_iamabot
+
+  - story: schedule meeting with all details in one message
+    steps:
+      - intent: schedule_meeting
+      - action: meeting_form
+      - active_loop: meeting_form
+      - active_loop: null
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
+      - intent: confirm
+      - action: action_create_meeting_summary
+
+  - story: change multiple fields before confirmation
+    steps:
+      - intent: schedule_meeting
+      - action: meeting_form
+      - active_loop: meeting_form
+      - active_loop: null
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
+      - intent: change_meeting_field
+      - action: action_set_requested_change_field
+      - action: change_meeting_field_form
+      - active_loop: change_meeting_field_form
+      - active_loop: null
+      - action: action_apply_meeting_change
+      - action: action_suggest_meeting_slots
+      - action: action_prepare_confirmation_summary
+      - intent: confirm
+      - action: action_create_meeting_summary

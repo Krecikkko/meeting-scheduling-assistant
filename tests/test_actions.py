@@ -265,5 +265,82 @@ class TestMeetingActions(unittest.TestCase):
         self.assertTrue(any(e == SlotSet("requested_change_field", None) for e in events))
         self.assertTrue(any(e == SlotSet("changed_field_value", None) for e in events))
 
+    def test_get_participants_from_entities(self):
+        from actions.actions import get_participants_from_entities
+        tracker = MagicMock()
+        tracker.latest_message = {
+            "entities": [
+                {"entity": "participant", "value": "Ana", "start": 5},
+                {"entity": "email", "value": "ana@example.com", "start": 12},
+                {"entity": "participant", "value": "Tom", "start": 32}
+            ]
+        }
+        res = get_participants_from_entities(tracker)
+        self.assertEqual(res, "Ana (ana@example.com) and Tom")
+
+    def test_action_set_requested_change_field_direct_correction(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.latest_message = {
+            "text": "Actually make it two hours",
+            "entities": [{"entity": "duration", "value": "2 hours"}]
+        }
+        tracker.get_slot.side_effect = lambda key: {
+            "preferred_time": "2026-05-22T15:00:00"
+        }.get(key)
+        
+        action = ActionSetRequestedChangeField()
+        events = action.run(dispatcher, tracker, {})
+        
+        self.assertTrue(any(e == SlotSet("duration", "2 hours") for e in events))
+        self.assertTrue(any(e == SlotSet("requested_change_field", "done") for e in events))
+        self.assertTrue(any(e == SlotSet("changed_field_value", "done") for e in events))
+
+    def test_action_apply_meeting_change_add_participant(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.get_slot.side_effect = lambda key: {
+            "requested_change_field": "participants",
+            "changed_field_value": "add Pedro",
+            "participants": "Anna and Tom"
+        }.get(key)
+        
+        action = ActionApplyMeetingChange()
+        events = action.run(dispatcher, tracker, {})
+        
+        self.assertTrue(any(e == SlotSet("participants", "Anna and Tom and Pedro") for e in events))
+
+    def test_action_apply_meeting_change_remove_participant(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.get_slot.side_effect = lambda key: {
+            "requested_change_field": "participants",
+            "changed_field_value": "remove Ana",
+            "participants": "Ana (ana@example.com) and Tom"
+        }.get(key)
+        
+        action = ActionApplyMeetingChange()
+        events = action.run(dispatcher, tracker, {})
+        
+        self.assertTrue(any(e == SlotSet("participants", "Tom") for e in events))
+
+    def test_validate_duration(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        
+        validator = ValidateMeetingForm()
+        
+        # Valid
+        res = validator.validate_duration("45 minutes", dispatcher, tracker, {})
+        self.assertEqual(res, {"duration": "45 minutes"})
+        
+        # Invalid: <= 0
+        res = validator.validate_duration("0 minutes", dispatcher, tracker, {})
+        self.assertEqual(res, {"duration": None})
+        
+        # Invalid: > 8 hours
+        res = validator.validate_duration("10 hours", dispatcher, tracker, {})
+        self.assertEqual(res, {"duration": None})
+
 if __name__ == "__main__":
     unittest.main()

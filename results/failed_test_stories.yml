@@ -9,7 +9,7 @@ stories:
   - active_loop: meeting_form
   - slot_was_set:
     - requested_slot: meeting_title
-  - intent: inform
+  - intent: inform  # predicted: inform: [Project planning]{"entity": "meeting_title", "value": "project planning"}
   - action: meeting_form
   - active_loop: meeting_form
   - slot_was_set:
@@ -23,14 +23,14 @@ stories:
     - participants: Anna and Tom
   - slot_was_set:
     - requested_slot: duration
-  - intent: inform  # predicted: inform: [45 minutes]{"entity": "duration", "value": "45"}
+  - intent: inform
   - action: meeting_form
   - active_loop: meeting_form
   - slot_was_set:
     - duration: 45 minutes
   - slot_was_set:
     - requested_slot: preferred_time
-  - intent: provide_time  # predicted: provide_time: [tomorrow at 3 pm]{"entity": "time", "value": "2026-05-31T15:00:00.000+02:00"}
+  - intent: provide_time
   - action: meeting_form
   - active_loop: null
   - slot_was_set:
@@ -41,10 +41,102 @@ stories:
   - action: action_prepare_confirmation_summary
   - intent: confirm
   - action: action_create_meeting_summary
-- story: standalone calendar query test (/home/qubaq/dev/meeting-scheduling-assistant/tests/test_stories.yml)
+- story: schedule meeting with all details in one message test (/home/qubaq/dev/meeting-scheduling-assistant/tests/test_stories.yml)
   steps:
-  - intent: ask_calendar_events  # predicted: ask_calendar_events: what do I have [tomorrow]{"entity": "time", "value": "2026-05-31T00:00:00.000+02:00"}?
-  - action: calendar_query_form
-  - active_loop: calendar_query_form
+  - intent: schedule_meeting  # predicted: schedule_meeting: I would like to schedule a meeting about [project planning](meeting_title) with [Ana](participant) tomorrow at 14:00 for 1 hour
+  - action: meeting_form
+  - active_loop: meeting_form
   - active_loop: null
-  - action: action_show_calendar_events
+  - slot_was_set:
+    - meeting_title: project planning
+  - slot_was_set:
+    - participants: Ana
+  - slot_was_set:
+    - duration: 1 hour
+  - slot_was_set:
+    - preferred_time: tomorrow at 14:00
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+- story: change multiple fields before confirmation test (/home/qubaq/dev/meeting-scheduling-assistant/tests/test_stories.yml)
+  steps:
+  - intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+    - requested_slot: meeting_title
+  - intent: inform  # predicted: inform: [Project planning]{"entity": "meeting_title", "value": "project planning"}
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+    - requested_slot: participants
+  - intent: inform  # predicted: inform: [Ana](participant)
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+    - requested_slot: duration
+  - intent: inform
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+    - requested_slot: preferred_time
+  - intent: provide_time
+  - action: meeting_form
+  - active_loop: null
+  - slot_was_set:
+    - preferred_time: tomorrow at 3 pm
+  - slot_was_set:
+    - requested_slot: null
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+  - intent: change_meeting_field  # predicted: change_meeting_field: Actually make it about [Sprint review](meeting_title) and invite [Pedro](participant) too
+  - action: action_set_requested_change_field
+  - slot_was_set:
+    - requested_change_field: done
+  - slot_was_set:
+    - changed_field_value: done
+  - slot_was_set:
+    - meeting_title: Sprint review
+  - slot_was_set:
+    - participants: Ana and Pedro
+  - action: change_meeting_field_form
+  - active_loop: change_meeting_field_form
+  - active_loop: null
+  - slot_was_set:
+    - requested_change_field: null
+  - slot_was_set:
+    - changed_field_value: null
+  - action: action_apply_meeting_change
+  - action: action_suggest_meeting_slots
+  - action: action_prepare_confirmation_summary
+  - intent: confirm
+  - action: action_create_meeting_summary
+- story: cancel scheduling test (/home/qubaq/dev/meeting-scheduling-assistant/tests/test_stories.yml)
+  steps:
+  - intent: schedule_meeting
+  - action: meeting_form
+  - active_loop: meeting_form
+  - slot_was_set:
+    - requested_slot: meeting_title
+  - intent: cancel  # predicted: deny: Cancel this meeting
+  - action: action_clear_meeting_slots
+  - slot_was_set:
+    - meeting_title: null
+  - slot_was_set:
+    - participants: null
+  - slot_was_set:
+    - duration: null
+  - slot_was_set:
+    - preferred_time: null
+  - slot_was_set:
+    - preferred_time_iso: null
+  - slot_was_set:
+    - calculated_end_time_iso: null
+  - slot_was_set:
+    - location: null
+  - slot_was_set:
+    - meeting_description: null
+  - slot_was_set:
+    - awaiting_meeting_confirmation: null
+  - action: action_deactivate_loop
+  - active_loop: null
+  - action: utter_cancelled

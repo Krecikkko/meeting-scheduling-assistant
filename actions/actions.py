@@ -314,6 +314,8 @@ class ActionCreateMeetingSummary(Action):
         
         preferred_time_iso = tracker.get_slot("preferred_time_iso")
         calculated_end_time_iso = tracker.get_slot("calculated_end_time_iso")
+        location = tracker.get_slot("location")
+        meeting_description = tracker.get_slot("meeting_description")
 
         # Try to parse and call API
         api_failed = False
@@ -329,13 +331,19 @@ class ActionCreateMeetingSummary(Action):
                 end_dt = start_dt + timedelta(minutes=duration_mins)
             
             description = f"Participants: {participants} \n" \
-                          f"Original duration: {slot_to_text(duration_slot)} \n" \
-                          "Created by Rasa meeting scheduling assistant."
+                          f"Original duration: {slot_to_text(duration_slot)} \n"
+            
+            if meeting_description:
+                description += f"Description: {meeting_description} \n"
+                
+            description += "Created by Rasa meeting scheduling assistant."
+            
             create_home_assistant_calendar_event(
                 summary=meeting_title,
                 description=description,
                 start_dt=start_dt,
-                end_dt=end_dt
+                end_dt=end_dt,
+                location=location
             )
         except Exception as e:
             api_failed = True
@@ -359,6 +367,8 @@ class ActionCreateMeetingSummary(Action):
             SlotSet("preferred_time", None),
             SlotSet("preferred_time_iso", None),
             SlotSet("calculated_end_time_iso", None),
+            SlotSet("location", None),
+            SlotSet("meeting_description", None),
             SlotSet("awaiting_meeting_confirmation", None),
         ]
 
@@ -381,6 +391,8 @@ class ActionClearMeetingSlots(Action):
             SlotSet("preferred_time", None),
             SlotSet("preferred_time_iso", None),
             SlotSet("calculated_end_time_iso", None),
+            SlotSet("location", None),
+            SlotSet("meeting_description", None),
             SlotSet("awaiting_meeting_confirmation", None),
         ]
 
@@ -468,6 +480,9 @@ class ActionShowCalendarEvents(Action):
                     summary = ev.get("summary", "Unnamed Event")
                     start_val = ev.get("start", "")
                     end_val = ev.get("end", "")
+                    location = ev.get("location", "")
+                    
+                    loc_str = f" (at {location})" if location else ""
                     
                     if "T" not in start_val:
                         time_str = "All day"
@@ -479,7 +494,7 @@ class ActionShowCalendarEvents(Action):
                         except Exception:
                             time_str = "Unknown time"
                             
-                    dispatcher.utter_message(text=f"{idx}. {time_str} — {summary}")
+                    dispatcher.utter_message(text=f"{idx}. {time_str} — {summary}{loc_str}")
                     
         # Check active loop and requested slot to dynamically guide the user next
         active_loop = tracker.active_loop.get("name")
@@ -537,6 +552,11 @@ class ActionPrepareConfirmationSummary(Action):
         meeting_title = slot_to_text(tracker.get_slot("meeting_title"))
         participants = slot_to_text(tracker.get_slot("participants"))
         duration = slot_to_text(tracker.get_slot("duration"))
+        location = tracker.get_slot("location")
+        description = tracker.get_slot("meeting_description")
+        
+        location_line = f"Location: {location}\n" if location else ""
+        description_line = f"Description: {description}\n" if description else ""
         
         confirmation_msg = (
             "Please confirm:\n"
@@ -544,12 +564,70 @@ class ActionPrepareConfirmationSummary(Action):
             f"Participants: {participants}\n"
             f"Duration: {duration}\n"
             f"Start: {friendly_time}\n"
-            f"End: {calculated_end}\n\n"
-            "You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', or 'change time'."
+            f"End: {calculated_end}\n"
+            f"{location_line}"
+            f"{description_line}\n"
+            "You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', 'change time', 'change location', or 'change description'."
         )
         dispatcher.utter_message(text=confirmation_msg)
         
         return events
+
+
+def get_participants_from_entities(tracker: Tracker) -> Optional[str]:
+    """
+    Extracts name and email entities from the latest user message,
+    and formats them cleanly. Pairs emails and names if possible.
+    """
+    entities = tracker.latest_message.get("entities", [])
+    
+    name_ents = []
+    email_ents = []
+    
+    for ent in entities:
+        if ent.get("entity") == "participant":
+            name_ents.append((ent.get("start", 0), ent.get("value")))
+        elif ent.get("entity") == "email":
+            email_ents.append((ent.get("start", 0), ent.get("value")))
+            
+    # Sort by start position to preserve order
+    name_ents.sort()
+    email_ents.sort()
+    
+    name_values = [v for _, v in name_ents]
+    email_values = [v for _, v in email_ents]
+    
+    combined = []
+    used_emails = set()
+    
+    for name in name_values:
+        matched_email = None
+        for email in email_values:
+            if email not in used_emails:
+                clean_name = name.lower().replace(" ", "")
+                clean_email = email.lower()
+                if clean_name in clean_email:
+                    matched_email = email
+                    used_emails.add(email)
+                    break
+        if matched_email:
+            combined.append(f"{name} ({matched_email})")
+        else:
+            combined.append(name)
+            
+    for email in email_values:
+        if email not in used_emails:
+            combined.append(email)
+            
+    if not combined:
+        return None
+        
+    if len(combined) == 1:
+        return combined[0]
+    elif len(combined) == 2:
+        return f"{combined[0]} and {combined[1]}"
+    else:
+        return ", ".join(combined[:-1]) + " and " + combined[-1]
 
 
 class ActionSetRequestedChangeField(Action):
@@ -562,25 +640,135 @@ class ActionSetRequestedChangeField(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[Dict[Text, Any]]:
-        # Get entity meeting_field
         entities = tracker.latest_message.get("entities", [])
+        text = tracker.latest_message.get("text", "")
+        text_lower = text.lower()
+        
+        events = []
+        direct_updated = []
+        
+        # Check for direct value entities in the latest message
+        title_ent = next((ent.get("value") for ent in entities if ent.get("entity") == "meeting_title"), None)
+        location_ent = next((ent.get("value") for ent in entities if ent.get("entity") == "location"), None)
+        desc_ent = next((ent.get("value") for ent in entities if ent.get("entity") == "meeting_description"), None)
+        duration_ent = next((ent.get("value") for ent in entities if ent.get("entity") == "duration"), None)
+        time_ent = next((ent.get("value") for ent in entities if ent.get("entity") == "time"), None)
+        
+        # Check participants
+        participant_ents = [ent.get("value") for ent in entities if ent.get("entity") == "participant"]
+        email_ents = [ent.get("value") for ent in entities if ent.get("entity") == "email"]
+        
+        if title_ent:
+            events.append(SlotSet("meeting_title", title_ent))
+            direct_updated.append(f"title to '{title_ent}'")
+            
+        if location_ent:
+            events.append(SlotSet("location", location_ent))
+            direct_updated.append(f"location to '{location_ent}'")
+            
+        if desc_ent:
+            events.append(SlotSet("meeting_description", desc_ent))
+            direct_updated.append("description")
+            
+        if duration_ent:
+            events.append(SlotSet("duration", duration_ent))
+            pref_time = tracker.get_slot("preferred_time")
+            try:
+                start_dt = parse_preferred_time(pref_time)
+                duration_mins = parse_duration(duration_ent)
+                end_dt = start_dt + timedelta(minutes=duration_mins)
+                events.append(SlotSet("calculated_end_time_iso", end_dt.isoformat()))
+            except Exception:
+                pass
+            direct_updated.append(f"duration to {duration_ent}")
+            
+        if time_ent:
+            try:
+                start_dt = parse_preferred_time(time_ent)
+                dur = tracker.get_slot("duration")
+                duration_mins = parse_duration(dur)
+                end_dt = start_dt + timedelta(minutes=duration_mins)
+                
+                friendly_time = format_readable_time(start_dt)
+                events.append(SlotSet("preferred_time", friendly_time))
+                events.append(SlotSet("preferred_time_iso", start_dt.isoformat()))
+                events.append(SlotSet("calculated_end_time_iso", end_dt.isoformat()))
+                direct_updated.append(f"time to {friendly_time}")
+            except Exception:
+                events.append(SlotSet("preferred_time", str(time_ent)))
+                direct_updated.append(f"time to {time_ent}")
+                
+        if participant_ents or email_ents:
+            current_val = tracker.get_slot("participants") or ""
+            new_participants = get_participants_from_entities(tracker)
+            
+            if new_participants:
+                if any(kw in text_lower for kw in ["add ", "invite ", "also", "too"]):
+                    if current_val:
+                        updated_val = f"{current_val} and {new_participants}"
+                    else:
+                        updated_val = new_participants
+                    events.append(SlotSet("participants", updated_val))
+                    direct_updated.append(f"added {new_participants} to participants")
+                elif any(kw in text_lower for kw in ["remove ", "delete ", "exclude"]):
+                    parts = re.split(r'\s+and\s+|\s*,\s*', current_val)
+                    to_remove_list = [p.lower().strip() for p in participant_ents + email_ents]
+                    remaining = []
+                    removed_names = []
+                    for p in parts:
+                        p_clean = p.strip()
+                        p_base = p_clean
+                        if "(" in p_clean:
+                            p_base = p_clean[:p_clean.index("(")].strip()
+                        
+                        matches_remove = False
+                        for tr in to_remove_list:
+                            if tr in p_clean.lower() or tr in p_base.lower():
+                                matches_remove = True
+                                removed_names.append(p_clean)
+                                break
+                        if not matches_remove:
+                            remaining.append(p_clean)
+                            
+                    if len(remaining) == 0:
+                        updated_val = None
+                    elif len(remaining) == 1:
+                        updated_val = remaining[0]
+                    else:
+                        updated_val = ", ".join(remaining[:-1]) + " and " + remaining[-1]
+                        
+                    events.append(SlotSet("participants", updated_val))
+                    direct_updated.append(f"removed {', '.join(removed_names)} from participants")
+                else:
+                    events.append(SlotSet("participants", new_participants))
+                    direct_updated.append(f"participants to {new_participants}")
+
+        if direct_updated:
+            msg = "Updated: " + ", ".join(direct_updated) + "."
+            dispatcher.utter_message(text=msg)
+            events.append(SlotSet("requested_change_field", "done"))
+            events.append(SlotSet("changed_field_value", "done"))
+            return events
+
         field = None
         for ent in entities:
             if ent.get("entity") == "meeting_field":
                 field = ent.get("value")
                 break
                 
-        # Fallback to text matching
         if not field:
-            text = tracker.latest_message.get("text", "").lower()
-            if "title" in text:
+            if "title" in text_lower or "topic" in text_lower:
                 field = "title"
-            elif "participant" in text or "who" in text:
+            elif "participant" in text_lower or "who" in text_lower or "invite" in text_lower or "add" in text_lower or "remove" in text_lower:
                 field = "participants"
-            elif "duration" in text or "long" in text or "length" in text:
+            elif "duration" in text_lower or "long" in text_lower or "length" in text_lower:
                 field = "duration"
-            elif "time" in text or "when" in text or "date" in text:
+            elif "time" in text_lower or "when" in text_lower or "date" in text_lower:
                 field = "time"
+            elif "location" in text_lower or "where" in text_lower or "room" in text_lower:
+                field = "location"
+            elif "description" in text_lower or "agenda" in text_lower:
+                field = "description"
                 
         return [SlotSet("requested_change_field", field)]
 
@@ -605,6 +793,10 @@ class ActionAskChangedFieldValue(Action):
             dispatcher.utter_message(text="What should the new duration be? For example: '30 minutes' or '1 hour'.")
         elif field == "time":
             dispatcher.utter_message(text="What should the new time be? You can write 'Friday at 10', or ask me to check your calendar, for example 'what do I have on Friday?'.")
+        elif field == "location":
+            dispatcher.utter_message(text="What should the new location be? For example: 'room 2.3' or 'online'.")
+        elif field == "description":
+            dispatcher.utter_message(text="What should the new description be?")
         else:
             dispatcher.utter_message(text="What is the new value?")
             
@@ -626,6 +818,11 @@ class ActionApplyMeetingChange(Action):
         
         events = []
         
+        if field == "done":
+            events.append(SlotSet("requested_change_field", None))
+            events.append(SlotSet("changed_field_value", None))
+            return events
+            
         target_slot = None
         if field == "title":
             target_slot = "meeting_title"
@@ -635,16 +832,65 @@ class ActionApplyMeetingChange(Action):
             target_slot = "duration"
         elif field == "time":
             target_slot = "preferred_time"
+        elif field == "location":
+            target_slot = "location"
+        elif field == "description":
+            target_slot = "meeting_description"
             
         if target_slot and value:
-            events.append(SlotSet(target_slot, value))
-            
-            # Recalculate end times and announce updates
-            if target_slot == "meeting_title":
+            if target_slot == "participants":
+                current_val = tracker.get_slot("participants") or ""
+                val_lower = value.lower().strip()
+                
+                if val_lower.startswith("add ") or val_lower.startswith("invite "):
+                    to_add = value[value.lower().index("add ") + 4:] if val_lower.startswith("add ") else value[value.lower().index("invite ") + 7:]
+                    to_add = to_add.strip()
+                    if current_val:
+                        new_val = f"{current_val} and {to_add}"
+                    else:
+                        new_val = to_add
+                    events.append(SlotSet(target_slot, new_val))
+                    dispatcher.utter_message(text=f"Added {to_add} to the participants.")
+                elif val_lower.startswith("remove ") or val_lower.startswith("delete "):
+                    to_remove = value[value.lower().index("remove ") + 7:] if val_lower.startswith("remove ") else value[value.lower().index("delete ") + 7:]
+                    to_remove = to_remove.strip().lower()
+                    
+                    parts = re.split(r'\s+and\s+|\s*,\s*', current_val)
+                    remaining = []
+                    removed = []
+                    for p in parts:
+                        p_clean = p.strip()
+                        p_base = p_clean
+                        if "(" in p_clean:
+                            p_base = p_clean[:p_clean.index("(")].strip()
+                        if to_remove in p_clean.lower() or to_remove in p_base.lower():
+                            removed.append(p_clean)
+                        else:
+                            remaining.append(p_clean)
+                            
+                    if len(remaining) == 0:
+                        new_val = None
+                    elif len(remaining) == 1:
+                        new_val = remaining[0]
+                    else:
+                        new_val = ", ".join(remaining[:-1]) + " and " + remaining[-1]
+                        
+                    events.append(SlotSet(target_slot, new_val))
+                    dispatcher.utter_message(text=f"Removed {', '.join(removed)} from the participants.")
+                else:
+                    events.append(SlotSet(target_slot, value))
+                    dispatcher.utter_message(text=f"Updated participants to {value}.")
+            elif target_slot == "meeting_title":
+                events.append(SlotSet(target_slot, value))
                 dispatcher.utter_message(text=f"Updated title to {value}.")
-            elif target_slot == "participants":
-                dispatcher.utter_message(text=f"Updated participants to {value}.")
+            elif target_slot == "location":
+                events.append(SlotSet(target_slot, value))
+                dispatcher.utter_message(text=f"Updated location to {value}.")
+            elif target_slot == "meeting_description":
+                events.append(SlotSet(target_slot, value))
+                dispatcher.utter_message(text=f"Updated description.")
             elif target_slot == "duration":
+                events.append(SlotSet(target_slot, value))
                 pref_time = tracker.get_slot("preferred_time")
                 try:
                     start_dt = parse_preferred_time(pref_time)
@@ -668,6 +914,7 @@ class ActionApplyMeetingChange(Action):
                     
                     dispatcher.utter_message(text=f"Updated time to {friendly_time}. The end time was recalculated from the duration.")
                 except Exception:
+                    events.append(SlotSet("preferred_time", value))
                     dispatcher.utter_message(text=f"Updated time to {value}. The end time was recalculated.")
                     
         events.append(SlotSet("requested_change_field", None))
@@ -707,6 +954,50 @@ class ValidateMeetingForm(FormValidationAction):
     def name(self) -> Text:
         return "validate_meeting_form"
 
+    def validate_meeting_title(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        if not slot_value or len(str(slot_value).strip()) < 2:
+            dispatcher.utter_message(text="Please specify a valid topic or title for the meeting.")
+            return {"meeting_title": None}
+        return {"meeting_title": slot_value}
+
+    def validate_participants(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        entities_formatted = get_participants_from_entities(tracker)
+        if entities_formatted:
+            return {"participants": entities_formatted}
+            
+        if not slot_value or len(str(slot_value).strip()) < 2:
+            dispatcher.utter_message(text="Please specify valid participants (names or emails).")
+            return {"participants": None}
+        return {"participants": slot_value}
+
+    def validate_duration(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        duration_mins = parse_duration(slot_value)
+        if duration_mins <= 0:
+            dispatcher.utter_message(text="The duration must be greater than zero. Please specify a valid duration.")
+            return {"duration": None}
+        if duration_mins > 480:
+            dispatcher.utter_message(text="That meeting is too long. Please choose a duration under 8 hours.")
+            return {"duration": None}
+        return {"duration": slot_value}
+
     def validate_preferred_time(
         self,
         slot_value: Any,
@@ -717,6 +1008,18 @@ class ValidateMeetingForm(FormValidationAction):
         intent = tracker.latest_message.get("intent", {}).get("name")
         if intent == "ask_calendar_events":
             return {"preferred_time": None}
+            
+        try:
+            start_dt = parse_preferred_time(slot_value)
+            tz = ZoneInfo(TIMEZONE_STR)
+            now = datetime.now(tz)
+            if start_dt < now:
+                dispatcher.utter_message(text="The preferred time is in the past. Please choose a future time.")
+                return {"preferred_time": None}
+        except Exception:
+            dispatcher.utter_message(text="I couldn't understand that time. Please specify a valid date and time.")
+            return {"preferred_time": None}
+            
         return {"preferred_time": slot_value}
 
 
@@ -734,4 +1037,22 @@ class ValidateChangeMeetingFieldForm(FormValidationAction):
         intent = tracker.latest_message.get("intent", {}).get("name")
         if intent == "ask_calendar_events":
             return {"changed_field_value": None}
+            
+        field = tracker.get_slot("requested_change_field")
+        if field == "duration":
+            duration_mins = parse_duration(slot_value)
+            if duration_mins <= 0 or duration_mins > 480:
+                dispatcher.utter_message(text="Please specify a valid duration (e.g., 30 minutes, 1 hour) under 8 hours.")
+                return {"changed_field_value": None}
+        elif field == "time":
+            try:
+                parse_preferred_time(slot_value)
+            except Exception:
+                dispatcher.utter_message(text="I couldn't parse that time. Please try again (e.g., Friday at 15:30).")
+                return {"changed_field_value": None}
+        elif field == "participants":
+            entities_formatted = get_participants_from_entities(tracker)
+            if entities_formatted:
+                return {"changed_field_value": entities_formatted}
+                
         return {"changed_field_value": slot_value}
