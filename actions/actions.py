@@ -176,11 +176,48 @@ def format_readable_time(dt: datetime) -> str:
         return f"{dt_local.strftime('%A')} at {time_str}"
 
 
+def is_time_entity_actually_duration(entity_text: str) -> bool:
+    """Checks if an extracted time entity is actually a duration (e.g. '45 minutes')."""
+    if not entity_text:
+        return False
+    text_lower = entity_text.lower()
+    duration_keywords = {"minute", "min", "hour", "hr", "day", "week", "month"}
+    
+    # Split into words to avoid matching substrings (e.g. 'monday' containing 'day')
+    words = re.findall(r'\b\w+\b', text_lower)
+    return any(kw in words or (kw + "s") in words for kw in duration_keywords)
+
+
+def clean_meeting_title(title: str) -> str:
+    """Strips common introductory prefixes from meeting titles."""
+    if not title:
+        return ""
+    
+    cleaned = title.strip()
+    prefixes = [
+        r"^(?:the\s+)?meeting\s+(?:will\s+be|is)\s+about\s+",
+        r"^(?:let's\s+)?(?:call|name)\s+it\s+",
+        r"^(?:the\s+)?topic\s+is\s+",
+        r"^about\s+",
+    ]
+    
+    for prefix in prefixes:
+        match = re.match(prefix, cleaned, re.IGNORECASE)
+        if match:
+            cleaned = cleaned[match.end():].strip()
+            break
+            
+    cleaned = re.sub(r'^[\s"\']+', '', cleaned)
+    cleaned = re.sub(r'[\s"\']+$', '', cleaned)
+    return cleaned
+
+
 def create_home_assistant_calendar_event(
     summary: str,
     description: str,
     start_dt: datetime,
-    end_dt: datetime
+    end_dt: datetime,
+    location: str = ""
 ) -> None:
     """
     Creates a calendar event in Home Assistant.
@@ -198,6 +235,7 @@ def create_home_assistant_calendar_event(
         "entity_id": HA_CALENDAR_ENTITY,
         "summary": summary,
         "description": description,
+        "location": location or "",
         "start_date_time": start_dt.isoformat(),
         "end_date_time": end_dt.isoformat()
     }
@@ -282,13 +320,20 @@ class ActionSuggestMeetingSlots(Action):
 
         meeting_title = slot_to_text(tracker.get_slot("meeting_title"))
         duration = slot_to_text(tracker.get_slot("duration"))
-        preferred_time = slot_to_text(tracker.get_slot("preferred_time"))
+        preferred_time_slot = tracker.get_slot("preferred_time_iso") or tracker.get_slot("preferred_time")
         participants = slot_to_text(tracker.get_slot("participants"))
+
+        friendly_time = slot_to_text(tracker.get_slot("preferred_time"))
+        try:
+            start_dt = parse_preferred_time(preferred_time_slot)
+            friendly_time = format_readable_time(start_dt)
+        except Exception:
+            pass
 
         dispatcher.utter_message(
             text=(
                 f"I found a possible slot for '{meeting_title}' "
-                f"with {participants}. Suggested time: {preferred_time}. "
+                f"with {participants}. Suggested time: {friendly_time}. "
                 f"Estimated duration: {duration}."
             )
         )
@@ -525,11 +570,12 @@ class ActionPrepareConfirmationSummary(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[Dict[Text, Any]]:
-        preferred_time_slot = tracker.get_slot("preferred_time")
+        preferred_time_slot = tracker.get_slot("preferred_time_iso") or tracker.get_slot("preferred_time")
         duration_slot = tracker.get_slot("duration")
         
         events = []
-        friendly_time = preferred_time_slot
+        friendly_time = tracker.get_slot("preferred_time")
+        friendly_end = "calculated from duration"
         calculated_end = "calculated from duration"
         
         try:
@@ -538,6 +584,7 @@ class ActionPrepareConfirmationSummary(Action):
             end_dt = start_dt + timedelta(minutes=duration_mins)
             
             friendly_time = format_readable_time(start_dt)
+            friendly_end = format_readable_time(end_dt)
             calculated_end = end_dt.isoformat()
             
             events.append(SlotSet("preferred_time", friendly_time))
@@ -564,7 +611,7 @@ class ActionPrepareConfirmationSummary(Action):
             f"Participants: {participants}\n"
             f"Duration: {duration}\n"
             f"Start: {friendly_time}\n"
-            f"End: {calculated_end}\n"
+            f"End: {friendly_end}\n"
             f"{location_line}"
             f"{description_line}\n"
             "You can write 'confirm' to create it, or write 'change title', 'change participants', 'change duration', 'change time', 'change location', or 'change description'."
@@ -579,47 +626,132 @@ def get_participants_from_entities(tracker: Tracker) -> Optional[str]:
     Extracts name and email entities from the latest user message,
     and formats them cleanly. Pairs emails and names if possible.
     """
+    text = tracker.latest_message.get("text", "")
     entities = tracker.latest_message.get("entities", [])
     
-    name_ents = []
-    email_ents = []
+    # Email regex
+    email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
     
-    for ent in entities:
-        if ent.get("entity") == "participant":
-            name_ents.append((ent.get("start", 0), ent.get("value")))
-        elif ent.get("entity") == "email":
-            email_ents.append((ent.get("start", 0), ent.get("value")))
-            
-    # Sort by start position to preserve order
-    name_ents.sort()
-    email_ents.sort()
+    # Delimiters to split the text: comma, semicolon, "and", "or", "with", "invite", "also"
+    # We want to split on word boundaries for the words
+    split_pattern = r',|;|\b(?:and|or|with|invite|also)\b'
     
-    name_values = [v for _, v in name_ents]
-    email_values = [v for _, v in email_ents]
+    raw_parts = re.split(split_pattern, text, flags=re.IGNORECASE)
     
-    combined = []
+    parsed_participants = []
     used_emails = set()
     
-    for name in name_values:
-        matched_email = None
-        for email in email_values:
-            if email not in used_emails:
-                clean_name = name.lower().replace(" ", "")
-                clean_email = email.lower()
-                if clean_name in clean_email:
-                    matched_email = email
-                    used_emails.add(email)
-                    break
-        if matched_email:
-            combined.append(f"{name} ({matched_email})")
-        else:
-            combined.append(name)
+    ignore_words = {
+        "invite", "add", "with", "please", "schedule", "call", "meeting", 
+        "to", "also", "and", "or", "me", "myself", "him", "her", "them", "us",
+        "about", "for", "the", "a", "an", "at", "should", "be", "attend",
+        "attending", "attended", "by", "will", "join", "joining",
+        "participant", "participants", "user", "users"
+    }
+    
+    for part in raw_parts:
+        part = part.strip()
+        if not part:
+            continue
             
-    for email in email_values:
-        if email not in used_emails:
-            combined.append(email)
+        # Find emails in this part
+        emails_in_part = re.findall(email_pattern, part)
+        
+        # Remove emails from the part to find the name
+        name_part = part
+        for email in emails_in_part:
+            name_part = name_part.replace(email, "")
+            
+        # Clean the name part
+        name_part = name_part.strip()
+        name_part = re.sub(r'^[\(\)\[\]\s,\."\':;\-]+', '', name_part)
+        name_part = re.sub(r'[\(\)\[\]\s,\."\':;\-]+$', '', name_part)
+        
+        words = name_part.split()
+        while words and words[0].lower() in ignore_words:
+            words.pop(0)
+        while words and words[-1].lower() in ignore_words:
+            words.pop()
+        clean_name = " ".join(words)
+        
+        # If we have both name and email(s) in this part
+        if emails_in_part:
+            for email in emails_in_part:
+                email_lower = email.lower()
+                if email_lower not in used_emails:
+                    if clean_name:
+                        parsed_participants.append({"name": clean_name, "email": email_lower})
+                    else:
+                        parsed_participants.append({"name": "", "email": email_lower})
+                    used_emails.add(email_lower)
+        elif clean_name:
+            parsed_participants.append({"name": clean_name, "email": ""})
+            
+    # Incorporate Rasa entities to make sure we didn't miss anything
+    rasa_names = []
+    rasa_emails = []
+    for ent in entities:
+        if ent.get("entity") == "participant":
+            v = ent.get("value")
+            if v:
+                rasa_names.append(v)
+        elif ent.get("entity") == "email":
+            v = ent.get("value")
+            if v:
+                rasa_emails.append(v.lower())
+                
+    # Ensure all Rasa emails are in used_emails
+    for remail in rasa_emails:
+        if remail not in used_emails:
+            matched = False
+            for p in parsed_participants:
+                if p["name"] and not p["email"]:
+                    clean_pname = p["name"].lower().replace(" ", "")
+                    if clean_pname in remail:
+                        p["email"] = remail
+                        used_emails.add(remail)
+                        matched = True
+                        break
+            if not matched:
+                parsed_participants.append({"name": "", "email": remail})
+                used_emails.add(remail)
+                
+    # Ensure all Rasa names are in parsed_participants
+    for rname in rasa_names:
+        found = False
+        # First, try to match with an existing participant that has an email but no name
+        for p in parsed_participants:
+            if not p["name"] and p["email"]:
+                clean_rname = rname.lower().replace(" ", "")
+                email_prefix = p["email"].split("@")[0].lower()
+                if clean_rname in email_prefix or email_prefix in clean_rname:
+                    p["name"] = rname
+                    found = True
+                    break
+        if found:
+            continue
+            
+        # Otherwise, check if it's already there with a name
+        for p in parsed_participants:
+            if p["name"] and (rname.lower() in p["name"].lower() or p["name"].lower() in rname.lower()):
+                found = True
+                break
+        if not found:
+            parsed_participants.append({"name": rname, "email": ""})
+            
+    # Format the results
+    combined = []
+    for p in parsed_participants:
+        if p["name"] and p["email"]:
+            combined.append(f"{p['name']} ({p['email']})")
+        elif p["name"]:
+            combined.append(p["name"])
+        elif p["email"]:
+            combined.append(p["email"])
             
     if not combined:
+        if text.strip().lower() in ["me", "myself"]:
+            return text.strip()
         return None
         
     if len(combined) == 1:
@@ -672,7 +804,7 @@ class ActionSetRequestedChangeField(Action):
             
         if duration_ent:
             events.append(SlotSet("duration", duration_ent))
-            pref_time = tracker.get_slot("preferred_time")
+            pref_time = tracker.get_slot("preferred_time_iso") or tracker.get_slot("preferred_time")
             try:
                 start_dt = parse_preferred_time(pref_time)
                 duration_mins = parse_duration(duration_ent)
@@ -891,7 +1023,7 @@ class ActionApplyMeetingChange(Action):
                 dispatcher.utter_message(text=f"Updated description.")
             elif target_slot == "duration":
                 events.append(SlotSet(target_slot, value))
-                pref_time = tracker.get_slot("preferred_time")
+                pref_time = tracker.get_slot("preferred_time_iso") or tracker.get_slot("preferred_time")
                 try:
                     start_dt = parse_preferred_time(pref_time)
                     duration_mins = parse_duration(value)
@@ -933,7 +1065,7 @@ class ActionRecalculateMeetingEndTime(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[Dict[Text, Any]]:
-        preferred_time_slot = tracker.get_slot("preferred_time")
+        preferred_time_slot = tracker.get_slot("preferred_time_iso") or tracker.get_slot("preferred_time")
         duration_slot = tracker.get_slot("duration")
         
         events = []
@@ -964,7 +1096,11 @@ class ValidateMeetingForm(FormValidationAction):
         if not slot_value or len(str(slot_value).strip()) < 2:
             dispatcher.utter_message(text="Please specify a valid topic or title for the meeting.")
             return {"meeting_title": None}
-        return {"meeting_title": slot_value}
+        cleaned = clean_meeting_title(str(slot_value))
+        if len(cleaned.strip()) < 2:
+            dispatcher.utter_message(text="Please specify a valid topic or title for the meeting.")
+            return {"meeting_title": None}
+        return {"meeting_title": cleaned}
 
     def validate_participants(
         self,
@@ -996,7 +1132,16 @@ class ValidateMeetingForm(FormValidationAction):
         if duration_mins > 480:
             dispatcher.utter_message(text="That meeting is too long. Please choose a duration under 8 hours.")
             return {"duration": None}
-        return {"duration": slot_value}
+            
+        if duration_mins % 60 == 0:
+            hours = duration_mins // 60
+            formatted = f"{hours} hour" + ("s" if hours > 1 else "")
+        elif duration_mins < 60:
+            formatted = f"{duration_mins} minutes"
+        else:
+            hours = duration_mins / 60
+            formatted = f"{hours:g} hours"
+        return {"duration": formatted}
 
     def validate_preferred_time(
         self,
@@ -1008,6 +1153,14 @@ class ValidateMeetingForm(FormValidationAction):
         intent = tracker.latest_message.get("intent", {}).get("name")
         if intent == "ask_calendar_events":
             return {"preferred_time": None}
+
+        # Check if the extracted time entity is actually a duration (e.g. "45 minutes")
+        entities = tracker.latest_message.get("entities", [])
+        time_entity = next((e for e in entities if e.get("entity") == "time"), None)
+        if time_entity:
+            entity_text = time_entity.get("text", "")
+            if is_time_entity_actually_duration(entity_text):
+                return {"preferred_time": None}
             
         try:
             start_dt = parse_preferred_time(slot_value)
@@ -1044,9 +1197,28 @@ class ValidateChangeMeetingFieldForm(FormValidationAction):
             if duration_mins <= 0 or duration_mins > 480:
                 dispatcher.utter_message(text="Please specify a valid duration (e.g., 30 minutes, 1 hour) under 8 hours.")
                 return {"changed_field_value": None}
+            if duration_mins % 60 == 0:
+                hours = duration_mins // 60
+                formatted = f"{hours} hour" + ("s" if hours > 1 else "")
+            elif duration_mins < 60:
+                formatted = f"{duration_mins} minutes"
+            else:
+                hours = duration_mins / 60
+                formatted = f"{hours:g} hours"
+            return {"changed_field_value": formatted}
         elif field == "time":
+            entities = tracker.latest_message.get("entities", [])
+            time_entity = next((e for e in entities if e.get("entity") == "time"), None)
+            time_val = None
+            if time_entity:
+                entity_text = time_entity.get("text", "")
+                if not is_time_entity_actually_duration(entity_text):
+                    time_val = time_entity.get("value")
+            
+            val_to_parse = time_val if time_val is not None else slot_value
             try:
-                parse_preferred_time(slot_value)
+                parse_preferred_time(val_to_parse)
+                return {"changed_field_value": val_to_parse}
             except Exception:
                 dispatcher.utter_message(text="I couldn't parse that time. Please try again (e.g., Friday at 15:30).")
                 return {"changed_field_value": None}
@@ -1054,5 +1226,8 @@ class ValidateChangeMeetingFieldForm(FormValidationAction):
             entities_formatted = get_participants_from_entities(tracker)
             if entities_formatted:
                 return {"changed_field_value": entities_formatted}
+        elif field == "title":
+            cleaned = clean_meeting_title(str(slot_value))
+            return {"changed_field_value": cleaned}
                 
         return {"changed_field_value": slot_value}

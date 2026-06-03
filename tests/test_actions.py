@@ -112,6 +112,7 @@ class TestMeetingActions(unittest.TestCase):
                 "entity_id": "calendar.test",
                 "summary": "Project Sync",
                 "description": "Participants: Anna",
+                "location": "",
                 "start_date_time": "2026-05-22T10:00:00+01:00",
                 "end_date_time": "2026-05-22T11:00:00+01:00"
             },
@@ -341,6 +342,187 @@ class TestMeetingActions(unittest.TestCase):
         # Invalid: > 8 hours
         res = validator.validate_duration("10 hours", dispatcher, tracker, {})
         self.assertEqual(res, {"duration": None})
+
+    def test_is_time_entity_actually_duration(self):
+        from actions.actions import is_time_entity_actually_duration
+        self.assertTrue(is_time_entity_actually_duration("45 minutes"))
+        self.assertTrue(is_time_entity_actually_duration("1 hour"))
+        self.assertTrue(is_time_entity_actually_duration("30 mins"))
+        self.assertTrue(is_time_entity_actually_duration("an hour"))
+        self.assertFalse(is_time_entity_actually_duration("tomorrow at 14:00"))
+        self.assertFalse(is_time_entity_actually_duration("next Friday"))
+        self.assertFalse(is_time_entity_actually_duration("Monday"))
+
+    def test_get_participants_from_entities_robust(self):
+        from actions.actions import get_participants_from_entities
+        tracker = MagicMock()
+        
+        # Test case: multiple names separated by "and"
+        tracker.latest_message = {
+            "text": "Ana and Tom",
+            "entities": [{"entity": "participant", "value": "Ana", "start": 0}]
+        }
+        self.assertEqual(get_participants_from_entities(tracker), "Ana and Tom")
+        
+        # Test case: comma separated list of names and emails
+        tracker.latest_message = {
+            "text": "Ana (ana@example.com), Tom, and pedro@example.com",
+            "entities": [
+                {"entity": "participant", "value": "Ana", "start": 0},
+                {"entity": "email", "value": "ana@example.com", "start": 5},
+                {"entity": "participant", "value": "Tom", "start": 23},
+                {"entity": "email", "value": "pedro@example.com", "start": 33}
+            ]
+        }
+        self.assertEqual(get_participants_from_entities(tracker), "Ana (ana@example.com), Tom and pedro@example.com")
+
+    def test_validate_preferred_time_duration_ignored(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.latest_message = {
+            "text": "The meeting will last 45 minutes",
+            "entities": [{"entity": "time", "value": "2026-06-02T21:45:00.000+01:00", "text": "45 minutes"}]
+        }
+        
+        validator = ValidateMeetingForm()
+        res = validator.validate_preferred_time("2026-06-02T21:45:00.000+01:00", dispatcher, tracker, {})
+        self.assertEqual(res, {"preferred_time": None})
+        dispatcher.utter_message.assert_not_called()
+
+    def test_action_prepare_confirmation_summary_friendly_end(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        
+        tz = ZoneInfo("Europe/Lisbon")
+        now = datetime.now(tz)
+        # Use a fixed tomorrow date for testing
+        tomorrow = now + timedelta(days=1)
+        tomorrow_1400 = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 14, 0, 0, tzinfo=tz)
+        tomorrow_1445 = tomorrow_1400 + timedelta(minutes=45)
+        
+        tracker.get_slot.side_effect = lambda key: {
+            "meeting_title": "Project Sync",
+            "participants": "Ana and Tom",
+            "duration": "45 minutes",
+            "preferred_time": tomorrow_1400.isoformat()
+        }.get(key)
+        
+        action = ActionPrepareConfirmationSummary()
+        events = action.run(dispatcher, tracker, {})
+        
+        # Verify calculated_end_time_iso is in events
+        self.assertTrue(any(e == SlotSet("calculated_end_time_iso", tomorrow_1445.isoformat()) for e in events))
+        
+        # Verify the dispatcher got a message with friendly Start and End times
+        calls = dispatcher.utter_message.mock_calls
+        self.assertEqual(len(calls), 1)
+        msg_text = calls[0][2]["text"]
+        self.assertIn("Start: tomorrow at 14:00", msg_text)
+        self.assertIn("End: tomorrow at 14:45", msg_text)
+        self.assertNotIn("End: " + tomorrow_1445.isoformat(), msg_text)
+
+    def test_participants_with_stop_words(self):
+        from actions.actions import get_participants_from_entities
+        tracker = MagicMock()
+        tracker.latest_message = {
+            "text": "should be attended by Tom and Ana",
+            "entities": []
+        }
+        self.assertEqual(get_participants_from_entities(tracker), "Tom and Ana")
+
+    def test_clean_duration_formatting(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        validator = ValidateMeetingForm()
+        
+        # Test case: 45 minutes
+        res = validator.validate_duration("The meeting should last 45 minutes", dispatcher, tracker, {})
+        self.assertEqual(res, {"duration": "45 minutes"})
+        
+        # Test case: 2 hours
+        res = validator.validate_duration("make it 2 hours please", dispatcher, tracker, {})
+        self.assertEqual(res, {"duration": "2 hours"})
+
+    def test_action_suggest_meeting_slots_friendly_time(self):
+        from actions.actions import ActionSuggestMeetingSlots
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        
+        tz = ZoneInfo("Europe/Lisbon")
+        now = datetime.now(tz)
+        tomorrow = now + timedelta(days=1)
+        tomorrow_1400 = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 14, 0, 0, tzinfo=tz)
+        
+        tracker.get_slot.side_effect = lambda key: {
+            "meeting_title": "project planning",
+            "participants": "Tom and Ana",
+            "duration": "45 minutes",
+            "preferred_time": tomorrow_1400.isoformat()
+        }.get(key)
+        
+        action = ActionSuggestMeetingSlots()
+        action.run(dispatcher, tracker, {})
+        
+        calls = dispatcher.utter_message.mock_calls
+        self.assertEqual(len(calls), 1)
+        msg_text = calls[0][2]["text"]
+        self.assertIn("Suggested time: tomorrow at 14:00", msg_text)
+
+    def test_clean_meeting_title(self):
+        from actions.actions import clean_meeting_title
+        self.assertEqual(clean_meeting_title("The meeting will be about Team meeting"), "Team meeting")
+        self.assertEqual(clean_meeting_title("meeting will be about Team meeting"), "Team meeting")
+        self.assertEqual(clean_meeting_title("let's call it Team meeting"), "Team meeting")
+        self.assertEqual(clean_meeting_title("topic is Team meeting"), "Team meeting")
+        self.assertEqual(clean_meeting_title("about Team meeting"), "Team meeting")
+        self.assertEqual(clean_meeting_title("Team meeting"), "Team meeting")
+
+    def test_validate_meeting_title_cleaned(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        validator = ValidateMeetingForm()
+        
+        res = validator.validate_meeting_title("The meeting will be about Team meeting", dispatcher, tracker, {})
+        self.assertEqual(res, {"meeting_title": "Team meeting"})
+
+    def test_validate_changed_field_value_title_cleaned(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.get_slot.side_effect = lambda key: {
+            "requested_change_field": "title"
+        }.get(key)
+        
+        validator = ValidateChangeMeetingFieldForm()
+        res = validator.validate_changed_field_value("The meeting will be about Team meeting", dispatcher, tracker, {})
+        self.assertEqual(res, {"changed_field_value": "Team meeting"})
+
+    def test_validate_changed_field_value_time_parsed(self):
+        dispatcher = MagicMock()
+        tracker = MagicMock()
+        tracker.get_slot.side_effect = lambda key: {
+            "requested_change_field": "time"
+        }.get(key)
+        
+        # Test case 1: Duckling time entity exists
+        tracker.latest_message = {
+            "entities": [
+                {"entity": "time", "value": "2026-06-04T13:00:00.000+01:00", "text": "Tomorrow at 1 PM"}
+            ]
+        }
+        validator = ValidateChangeMeetingFieldForm()
+        res = validator.validate_changed_field_value("Tomorrow at 1 PM", dispatcher, tracker, {})
+        self.assertEqual(res, {"changed_field_value": "2026-06-04T13:00:00.000+01:00"})
+
+        # Test case 2: No time entity (raw parseable string)
+        tracker.latest_message = {"entities": []}
+        res = validator.validate_changed_field_value("2026-06-04T13:00:00+01:00", dispatcher, tracker, {})
+        self.assertEqual(res, {"changed_field_value": "2026-06-04T13:00:00+01:00"})
+
+        # Test case 3: Unparseable
+        tracker.latest_message = {"entities": []}
+        res = validator.validate_changed_field_value("unparseable relative time string", dispatcher, tracker, {})
+        self.assertEqual(res, {"changed_field_value": None})
+        dispatcher.utter_message.assert_called_with(text="I couldn't parse that time. Please try again (e.g., Friday at 15:30).")
 
 if __name__ == "__main__":
     unittest.main()
