@@ -2,6 +2,8 @@
 
 An intelligent dialogue assistant built on **Rasa Open Source** and integrated with a **Home Assistant Calendar** and **Duckling**. The project provides both a textual dialogue interface and a modern browser-based web chat interface.
 
+See demo: https://youtu.be/VffBAKj67zk
+
 ---
 
 ## Features
